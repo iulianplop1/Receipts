@@ -41,7 +41,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
       
       setReviewItems(items.map(item => ({ 
         ...item, 
-        currency: 'USD',
+        currency: 'DKK',
         date: receiptDate // Use date from receipt
       })))
       setMode('review')
@@ -61,7 +61,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
 
     try {
       const result = await parseTextInput(text)
-      setReviewItems(result.items.map(item => ({ ...item, currency: 'USD' })))
+      setReviewItems(result.items.map(item => ({ ...item, currency: 'DKK' })))
       setMode('review')
     } catch (err) {
       setError('Failed to parse text. Please try again.')
@@ -235,7 +235,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
             console.log('Gemini transcription result:', result)
             
             if (result && result.items && result.items.length > 0) {
-              setReviewItems(result.items.map(item => ({ ...item, currency: 'USD' })))
+              setReviewItems(result.items.map(item => ({ ...item, currency: 'DKK' })))
               setMode('review')
               setAudioBlob(null)
               audioBlobRef.current = null
@@ -257,7 +257,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
               console.log('Trying Web Speech API transcription as fallback...')
               try {
                 const result = await parseTranscribedAudio(transcription)
-                setReviewItems(result.items.map(item => ({ ...item, currency: 'USD' })))
+                setReviewItems(result.items.map(item => ({ ...item, currency: 'DKK' })))
                 setMode('review')
                 setAudioBlob(null)
                 audioBlobRef.current = null
@@ -344,8 +344,9 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
           // Upload the receipt image
           receiptImageUrl = await uploadReceiptImage(receiptFile, userId)
         } catch (uploadError) {
-          console.warn('Failed to upload receipt image:', uploadError)
+          console.warn('Receipt image upload failed (transaction will still be saved):', uploadError.message)
           // Continue without image - don't block transaction creation
+          // The transaction will be saved successfully, just without the receipt image
         }
       }
 
@@ -367,7 +368,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
           item: item.item,
           amount: parseFloat(item.amount),
           category: item.category,
-          currency: item.currency || 'USD',
+          currency: item.currency || 'DKK',
           date: itemDate,
           receipt_image_url: receiptImageUrl, // Add receipt image URL
         })
@@ -571,16 +572,16 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
                   <div className="review-field">
                     <label>Currency</label>
                     <select
-                      value={item.currency || 'USD'}
+                      value={item.currency || 'DKK'}
                       onChange={(e) => handleReviewEdit(index, 'currency', e.target.value)}
                     >
+                      <option value="DKK">DKK</option>
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
                       <option value="GBP">GBP</option>
                       <option value="JPY">JPY</option>
                       <option value="CAD">CAD</option>
                       <option value="AUD">AUD</option>
-                      <option value="DKK">DKK</option>
                     </select>
                   </div>
                   

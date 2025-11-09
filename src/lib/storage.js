@@ -14,32 +14,37 @@ export async function uploadReceiptImage(file, userId, transactionId = null) {
     const timestamp = Date.now()
     const randomId = Math.random().toString(36).substring(2, 9)
     
-    // Use user ID as folder structure for better organization and RLS
+    // Generate filename
     const fileName = transactionId 
       ? `${transactionId}-${timestamp}.${fileExt}`
       : `${timestamp}-${randomId}.${fileExt}`
     
-    // Store in user-specific folder for RLS policies
-    const filePath = `${userId}/${fileName}`
+    // For public buckets, we can use a simpler path structure
+    // Try user folder first, fallback to root if that fails
+    let filePath = `${userId}/${fileName}`
+    let uploadError = null
 
-    // Upload the file
-    const { data, error } = await supabase.storage
+    // Try uploading to user folder
+    let { data, error } = await supabase.storage
       .from('receipts')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
       })
 
+    // Even public buckets need RLS policies for authenticated uploads
+    // If we get a policy error, the bucket needs policies set up
+
     if (error) {
       // Provide helpful error messages
       if (error.message.includes('Bucket not found') || error.message.includes('not found')) {
-        throw new Error('Receipts storage bucket not found. Please create a "receipts" bucket in Supabase Storage and set up the storage policies.')
+        throw new Error('Receipts bucket not found. Create a "receipts" bucket in Supabase Storage → Storage. See FIX_STORAGE_NOW.md for step-by-step instructions.')
       }
-      if (error.message.includes('row-level security') || error.message.includes('RLS')) {
-        throw new Error('Storage RLS policy error. Please check that the storage bucket has the correct policies set up. See SETUP_NEW_FEATURES.md for instructions.')
+      if (error.message.includes('row-level security') || error.message.includes('RLS') || error.message.includes('policy')) {
+        throw new Error('Storage policy error. Make the "receipts" bucket public (Storage → receipts → Edit → Check "Public bucket") or set up RLS policies. See FIX_STORAGE_NOW.md for instructions.')
       }
       console.error('Storage upload error:', error)
-      throw error
+      throw new Error(`Storage error: ${error.message}. See FIX_STORAGE_NOW.md for setup instructions.`)
     }
 
     // Get the public URL

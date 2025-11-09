@@ -11,7 +11,7 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
   const [newSubscription, setNewSubscription] = useState({
     name: '',
     amount: '',
-    currency: 'USD',
+    currency: 'DKK',
     frequency: 'month',
     start_date: new Date().toISOString().split('T')[0]
   })
@@ -75,7 +75,7 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
       setNewSubscription({ 
         name: '', 
         amount: '', 
-        currency: 'USD', 
+        currency: 'DKK', 
         frequency: 'month',
         start_date: new Date().toISOString().split('T')[0]
       })
@@ -229,13 +229,13 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
                     value={newSubscription.currency}
                     onChange={(e) => setNewSubscription({ ...newSubscription, currency: e.target.value })}
                   >
+                    <option value="DKK">DKK</option>
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
                     <option value="GBP">GBP</option>
                     <option value="JPY">JPY</option>
                     <option value="CAD">CAD</option>
                     <option value="AUD">AUD</option>
-                    <option value="DKK">DKK</option>
                   </select>
                 </div>
               </div>

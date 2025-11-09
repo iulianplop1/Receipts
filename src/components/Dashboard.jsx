@@ -17,7 +17,7 @@ export default function Dashboard({ user }) {
   const [subscriptions, setSubscriptions] = useState([])
   const [insights, setInsights] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedCurrency, setSelectedCurrency] = useState('USD')
+  const [selectedCurrency, setSelectedCurrency] = useState('DKK')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
 
@@ -125,13 +125,13 @@ export default function Dashboard({ user }) {
             onChange={(e) => setSelectedCurrency(e.target.value)}
             className="currency-select"
           >
+            <option value="DKK">DKK</option>
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
             <option value="GBP">GBP</option>
             <option value="JPY">JPY</option>
             <option value="CAD">CAD</option>
             <option value="AUD">AUD</option>
-            <option value="DKK">DKK</option>
           </select>
           <button onClick={handleSignOut} className="btn-secondary">
             Sign Out
