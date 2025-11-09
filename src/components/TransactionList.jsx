@@ -23,6 +23,7 @@ export default function TransactionList({ transactions, currency, onUpdate }) {
   const [sortBy, setSortBy] = useState('date')
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
+  const [viewingImage, setViewingImage] = useState(null)
 
   const categories = [...new Set(transactions.map(t => t.category))]
 
@@ -218,6 +219,22 @@ export default function TransactionList({ transactions, currency, onUpdate }) {
                             </span>
                           </div>
                         </div>
+                        {transaction.receipt_image_url && (
+                          <button
+                            className="receipt-thumbnail-btn"
+                            onClick={() => setViewingImage(transaction.receipt_image_url)}
+                            title="View receipt"
+                          >
+                            <img
+                              src={transaction.receipt_image_url}
+                              alt="Receipt"
+                              className="receipt-thumbnail"
+                              onError={(e) => {
+                                e.target.style.display = 'none'
+                              }}
+                            />
+                          </button>
+                        )}
                       </div>
                       <div className="transaction-amount">
                         {formatCurrency(amount, currency)}
@@ -247,6 +264,16 @@ export default function TransactionList({ transactions, currency, onUpdate }) {
             })}
           </div>
         </>
+      )}
+
+      {/* Receipt Image Modal */}
+      {viewingImage && (
+        <div className="image-modal-overlay" onClick={() => setViewingImage(null)}>
+          <div className="image-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="image-modal-close" onClick={() => setViewingImage(null)}>×</button>
+            <img src={viewingImage} alt="Receipt" className="receipt-full-image" />
+          </div>
+        </div>
       )}
     </div>
   )

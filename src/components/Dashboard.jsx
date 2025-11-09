@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getTransactions, getBudgets, getSubscriptions } from '../lib/db'
 import { generateInsights } from '../lib/gemini'
+import { exportAllData } from '../lib/export'
 import TransactionList from './TransactionList'
 import BudgetOverview from './BudgetOverview'
 import InsightsCard from './InsightsCard'
@@ -18,10 +19,22 @@ export default function Dashboard({ user }) {
   const [loading, setLoading] = useState(true)
   const [selectedCurrency, setSelectedCurrency] = useState('USD')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   useEffect(() => {
     loadData()
   }, [user])
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showExportMenu && !event.target.closest('.export-menu-container')) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showExportMenu])
 
   const loadData = async () => {
     try {
@@ -67,6 +80,11 @@ export default function Dashboard({ user }) {
     setShowAddModal(false)
   }
 
+  const handleExport = (format) => {
+    exportAllData(transactions, budgets, subscriptions, format)
+    setShowExportMenu(false)
+  }
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -83,6 +101,25 @@ export default function Dashboard({ user }) {
           <p className="header-subtitle">Welcome back, {user.email}</p>
         </div>
         <div className="header-actions">
+          <div className="export-menu-container">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="btn-secondary export-btn"
+              title="Export data"
+            >
+              📥 Export
+            </button>
+            {showExportMenu && (
+              <div className="export-menu">
+                <button onClick={() => handleExport('json')} className="export-option">
+                  Export as JSON
+                </button>
+                <button onClick={() => handleExport('csv')} className="export-option">
+                  Export as CSV
+                </button>
+              </div>
+            )}
+          </div>
           <select
             value={selectedCurrency}
             onChange={(e) => setSelectedCurrency(e.target.value)}
@@ -123,6 +160,7 @@ export default function Dashboard({ user }) {
             transactions={transactions}
             currency={selectedCurrency}
             onUpdate={loadData}
+            userId={user.id}
           />
 
           <TransactionList

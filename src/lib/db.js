@@ -22,6 +22,15 @@ export async function addTransaction(transaction) {
   return data
 }
 
+export async function deleteSubscription(id) {
+  const { error } = await supabase
+    .from('subscriptions')
+    .delete()
+    .eq('id', id)
+  
+  if (error) throw error
+}
+
 export async function updateTransaction(id, updates) {
   const { data, error } = await supabase
     .from('transactions')

@@ -1,11 +1,19 @@
 import { useState } from 'react'
 import { formatCurrency, convertCurrency } from '../lib/currency'
-import { updateSubscription } from '../lib/db'
+import { updateSubscription, addSubscription, deleteSubscription } from '../lib/db'
 import { format } from 'date-fns'
 import './SubscriptionTracker.css'
 
-export default function SubscriptionTracker({ subscriptions, transactions, currency, onUpdate }) {
+export default function SubscriptionTracker({ subscriptions, transactions, currency, onUpdate, userId }) {
   const [updating, setUpdating] = useState(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newSubscription, setNewSubscription] = useState({
+    name: '',
+    amount: '',
+    currency: 'USD',
+    frequency: 'month'
+  })
+  const [adding, setAdding] = useState(false)
 
   // Detect potential subscriptions from transactions
   const potentialSubscriptions = transactions
@@ -36,14 +44,60 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
     }
   }
 
-  if (subscriptions.length === 0 && Object.keys(potentialSubscriptions).length === 0) {
-    return null
+  const handleAddSubscription = async (e) => {
+    e.preventDefault()
+    if (!newSubscription.name || !newSubscription.amount) {
+      alert('Please fill in all fields')
+      return
+    }
+
+    setAdding(true)
+    try {
+      await addSubscription({
+        user_id: userId,
+        name: newSubscription.name,
+        amount: parseFloat(newSubscription.amount),
+        currency: newSubscription.currency,
+        frequency: newSubscription.frequency,
+        active: true
+      })
+      setShowAddModal(false)
+      setNewSubscription({ name: '', amount: '', currency: 'USD', frequency: 'month' })
+      onUpdate()
+    } catch (error) {
+      console.error('Error adding subscription:', error)
+      alert('Failed to add subscription')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleDeleteSubscription = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this subscription?')) {
+      return
+    }
+    setUpdating(id)
+    try {
+      await deleteSubscription(id)
+      onUpdate()
+    } catch (error) {
+      console.error('Error deleting subscription:', error)
+      alert('Failed to delete subscription')
+    } finally {
+      setUpdating(null)
+    }
   }
 
   return (
     <div className="subscription-tracker-card">
       <div className="card-header">
         <h2>Subscriptions</h2>
+        <button
+          className="btn-add-subscription"
+          onClick={() => setShowAddModal(true)}
+        >
+          + Add Subscription
+        </button>
       </div>
 
       {subscriptions.length > 0 && (
@@ -58,13 +112,23 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
                     {formatCurrency(amount, currency)} / {sub.frequency || 'month'}
                   </div>
                 </div>
-                <button
-                  className={`subscription-toggle ${sub.active ? 'active' : 'inactive'}`}
-                  onClick={() => handleToggleSubscription(sub.id, sub.active)}
-                  disabled={updating === sub.id}
-                >
-                  {updating === sub.id ? '...' : sub.active ? 'Active' : 'Inactive'}
-                </button>
+                <div className="subscription-actions">
+                  <button
+                    className={`subscription-toggle ${sub.active ? 'active' : 'inactive'}`}
+                    onClick={() => handleToggleSubscription(sub.id, sub.active)}
+                    disabled={updating === sub.id}
+                  >
+                    {updating === sub.id ? '...' : sub.active ? 'Active' : 'Inactive'}
+                  </button>
+                  <button
+                    className="subscription-delete"
+                    onClick={() => handleDeleteSubscription(sub.id)}
+                    disabled={updating === sub.id}
+                    title="Delete subscription"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             )
           })}
@@ -84,6 +148,79 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Add Subscription Modal */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content subscription-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowAddModal(false)}>×</button>
+            <h2>Add Subscription</h2>
+            <form onSubmit={handleAddSubscription} className="subscription-form">
+              <div className="form-field">
+                <label>Service Name</label>
+                <input
+                  type="text"
+                  value={newSubscription.name}
+                  onChange={(e) => setNewSubscription({ ...newSubscription, name: e.target.value })}
+                  placeholder="e.g., Netflix"
+                  required
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-field">
+                  <label>Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newSubscription.amount}
+                    onChange={(e) => setNewSubscription({ ...newSubscription, amount: e.target.value })}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+                <div className="form-field">
+                  <label>Currency</label>
+                  <select
+                    value={newSubscription.currency}
+                    onChange={(e) => setNewSubscription({ ...newSubscription, currency: e.target.value })}
+                  >
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="JPY">JPY</option>
+                    <option value="CAD">CAD</option>
+                    <option value="AUD">AUD</option>
+                    <option value="DKK">DKK</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-field">
+                <label>Frequency</label>
+                <select
+                  value={newSubscription.frequency}
+                  onChange={(e) => setNewSubscription({ ...newSubscription, frequency: e.target.value })}
+                >
+                  <option value="month">Monthly</option>
+                  <option value="year">Yearly</option>
+                  <option value="week">Weekly</option>
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="submit" className="btn-primary" disabled={adding}>
+                  {adding ? 'Adding...' : 'Add Subscription'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowAddModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

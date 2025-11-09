@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { analyzeReceipt, parseTextInput, parseTranscribedAudio } from '../lib/gemini'
 import { addTransaction } from '../lib/db'
+import { uploadReceiptImage } from '../lib/storage'
 import RecordRTC from 'recordrtc'
 import './AddExpenseButton.css'
 
@@ -12,6 +13,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
   const [recording, setRecording] = useState(false)
   const [audioBlob, setAudioBlob] = useState(null)
   const [recordingTime, setRecordingTime] = useState(0)
+  const [receiptFile, setReceiptFile] = useState(null) // Store the receipt file for upload
   
   const fileInputRef = useRef(null)
   const recorderRef = useRef(null)
@@ -29,6 +31,9 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
     setError('')
 
     try {
+      // Store the file for later upload
+      setReceiptFile(file)
+      
       const result = await analyzeReceipt(file)
       // Handle both old format (array) and new format (object with date and items)
       const items = result.items || result
@@ -332,6 +337,18 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
     setError('')
 
     try {
+      // Upload receipt image if available (only for first item to avoid duplicates)
+      let receiptImageUrl = null
+      if (receiptFile && reviewItems.length > 0) {
+        try {
+          // Upload the receipt image
+          receiptImageUrl = await uploadReceiptImage(receiptFile, userId)
+        } catch (uploadError) {
+          console.warn('Failed to upload receipt image:', uploadError)
+          // Continue without image - don't block transaction creation
+        }
+      }
+
       for (const item of reviewItems) {
         // Use date from item if available, otherwise use today
         const itemDate = item.date 
@@ -345,6 +362,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
           category: item.category,
           currency: item.currency || 'USD',
           date: itemDate,
+          receipt_image_url: receiptImageUrl, // Add receipt image URL
         })
       }
       handleClose()
@@ -389,6 +407,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
     audioBlobRef.current = null
     setRecordingTime(0)
     transcriptionRef.current = ''
+    setReceiptFile(null) // Clear receipt file
     onClose()
   }
   
