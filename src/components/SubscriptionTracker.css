@@ -1,0 +1,86 @@
+.subscription-tracker-card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+.subscriptions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.subscription-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--background);
+  border-radius: 12px;
+}
+
+.subscription-info {
+  flex: 1;
+}
+
+.subscription-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.subscription-details {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.subscription-toggle {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.subscription-toggle.active {
+  background: var(--success);
+  color: white;
+}
+
+.subscription-toggle.inactive {
+  background: var(--border);
+  color: var(--text-secondary);
+}
+
+.subscription-toggle:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.subscription-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.potential-subscriptions {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--background);
+  border-radius: 12px;
+}
+
+.potential-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.potential-item {
+  padding: 12px;
+  background: var(--surface);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
