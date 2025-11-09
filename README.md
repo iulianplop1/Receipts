@@ -2,6 +2,8 @@
 
 A beautiful, minimalistic budgeting app that helps you track expenses through receipt scanning, voice input, and manual entry.
 
+🚀 Deployed at: https://iulianplop1.github.io/Receipts/
+
 ## Features
 
 - 📸 Receipt photo analysis with AI
