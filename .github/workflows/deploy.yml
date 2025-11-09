@@ -5,12 +5,18 @@ on:
     branches:
       - main
 
+# Allow the workflow to write to the repository
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Setup Node.js
         uses: actions/setup-node@v3
