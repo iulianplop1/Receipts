@@ -32,8 +32,20 @@ function getBillingPeriods(startDate, endDate, frequency) {
 export function calculateSubscriptionCost(subscription, startDate, endDate, targetCurrency) {
   if (!subscription.active) return 0
 
-  const subStart = subscription.start_date ? new Date(subscription.start_date) : new Date(subscription.created_at)
-  const subEnd = subscription.next_billing_date ? new Date(subscription.next_billing_date) : null
+  // Parse dates as local dates to avoid timezone issues
+  let subStart
+  if (subscription.start_date) {
+    const [year, month, day] = subscription.start_date.split('-').map(Number)
+    subStart = new Date(year, month - 1, day)
+  } else {
+    subStart = new Date(subscription.created_at)
+  }
+  
+  let subEnd = null
+  if (subscription.next_billing_date) {
+    const [year, month, day] = subscription.next_billing_date.split('-').map(Number)
+    subEnd = new Date(year, month - 1, day)
+  }
 
   // If subscription hasn't started yet, return 0
   if (subStart > endDate) return 0
@@ -83,7 +95,9 @@ export function calculateTotalSubscriptionCost(subscriptions, currency) {
  * Get next billing date based on frequency
  */
 export function getNextBillingDate(startDate, frequency, currentDate = null) {
-  const start = new Date(startDate)
+  // Parse date string (YYYY-MM-DD) as local date to avoid timezone issues
+  const [year, month, day] = startDate.split('-').map(Number)
+  const start = new Date(year, month - 1, day)
   const current = currentDate ? new Date(currentDate) : new Date()
   const next = new Date(start)
 
@@ -103,6 +117,10 @@ export function getNextBillingDate(startDate, frequency, currentDate = null) {
     }
   }
 
-  return next.toISOString().split('T')[0]
+  // Return as YYYY-MM-DD string using local date
+  const nextYear = next.getFullYear()
+  const nextMonth = String(next.getMonth() + 1).padStart(2, '0')
+  const nextDay = String(next.getDate()).padStart(2, '0')
+  return `${nextYear}-${nextMonth}-${nextDay}`
 }
 

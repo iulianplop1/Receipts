@@ -57,11 +57,24 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
 
   const handleEdit = (transaction) => {
     setEditingId(transaction.id)
+    // Handle date conversion properly to avoid timezone issues
+    let dateStr = ''
+    if (transaction.date) {
+      const date = new Date(transaction.date)
+      // Use local date to avoid timezone shift
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      dateStr = `${year}-${month}-${day}`
+    } else {
+      dateStr = new Date().toISOString().split('T')[0]
+    }
+    
     setEditForm({
       item: transaction.item,
       amount: transaction.amount,
       category: transaction.category,
-      date: format(new Date(transaction.date), 'yyyy-MM-dd'),
+      date: dateStr,
       currency: transaction.currency || 'USD'
     })
   }
@@ -73,11 +86,17 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
 
   const handleSaveEdit = async (id) => {
     try {
+      // Convert date string to ISO string at local midnight to avoid timezone shift
+      const dateStr = editForm.date
+      const [year, month, day] = dateStr.split('-').map(Number)
+      const localDate = new Date(year, month - 1, day)
+      const isoString = localDate.toISOString()
+      
       await updateTransaction(id, {
         item: editForm.item,
         amount: parseFloat(editForm.amount),
         category: editForm.category,
-        date: new Date(editForm.date).toISOString(),
+        date: isoString,
         currency: editForm.currency
       })
       setEditingId(null)
@@ -244,7 +263,14 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
                           <div className="transaction-meta">
                             <span className="transaction-category">{transaction.category}</span>
                             <span className="transaction-date">
-                              {format(new Date(transaction.date), 'MMM d, yyyy')}
+                              {(() => {
+                                // Parse date as local to avoid timezone shift
+                                const date = new Date(transaction.date)
+                                const year = date.getFullYear()
+                                const month = date.getMonth()
+                                const day = date.getDate()
+                                return format(new Date(year, month, day), 'MMM d, yyyy')
+                              })()}
                             </span>
                           </div>
                         </div>

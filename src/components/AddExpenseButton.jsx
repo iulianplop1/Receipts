@@ -351,9 +351,16 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
 
       for (const item of reviewItems) {
         // Use date from item if available, otherwise use today
-        const itemDate = item.date 
-          ? new Date(item.date).toISOString() 
-          : new Date().toISOString()
+        let itemDate
+        if (item.date) {
+          // Handle date string (YYYY-MM-DD) - create date at local midnight to avoid timezone shift
+          const dateStr = typeof item.date === 'string' ? item.date : item.date
+          const [year, month, day] = dateStr.split('-').map(Number)
+          const localDate = new Date(year, month - 1, day)
+          itemDate = localDate.toISOString()
+        } else {
+          itemDate = new Date().toISOString()
+        }
         
         await addTransaction({
           user_id: userId,

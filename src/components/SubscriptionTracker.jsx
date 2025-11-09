@@ -120,12 +120,18 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
         <div className="subscriptions-list">
             {subscriptions.map(sub => {
             const amount = convertCurrency(sub.amount, sub.currency || 'USD', currency)
-            const nextBilling = sub.next_billing_date 
-              ? format(new Date(sub.next_billing_date), 'MMM d, yyyy')
-              : 'Not set'
-            const daysUntilBilling = sub.next_billing_date
-              ? Math.ceil((new Date(sub.next_billing_date) - new Date()) / (1000 * 60 * 60 * 24))
-              : null
+            // Parse date string as local date to avoid timezone shift
+            let nextBilling = 'Not set'
+            let daysUntilBilling = null
+            if (sub.next_billing_date) {
+              const [year, month, day] = sub.next_billing_date.split('-').map(Number)
+              const billingDate = new Date(year, month - 1, day)
+              nextBilling = format(billingDate, 'MMM d, yyyy')
+              const today = new Date()
+              today.setHours(0, 0, 0, 0)
+              billingDate.setHours(0, 0, 0, 0)
+              daysUntilBilling = Math.ceil((billingDate - today) / (1000 * 60 * 60 * 24))
+            }
             return (
               <div key={sub.id} className="subscription-item">
                 <div className="subscription-info">
