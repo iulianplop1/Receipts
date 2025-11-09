@@ -35,15 +35,25 @@ export default function Dashboard({ user }) {
       setTransactions(txns)
       setBudgets(bdgs)
       setSubscriptions(subs)
+      
+      // Set loading to false first to show the page quickly
+      setLoading(false)
 
-      // Generate insights
+      // Generate insights asynchronously after initial render (non-blocking)
       if (txns.length > 0) {
-        const insightsData = await generateInsights(txns)
-        setInsights(insightsData.insights || [])
+        // Use setTimeout to defer insights generation to next event loop
+        setTimeout(async () => {
+          try {
+            const insightsData = await generateInsights(txns)
+            setInsights(insightsData.insights || [])
+          } catch (error) {
+            console.error('Error generating insights:', error)
+            // Don't block the UI if insights fail
+          }
+        }, 0)
       }
     } catch (error) {
       console.error('Error loading data:', error)
-    } finally {
       setLoading(false)
     }
   }
@@ -84,6 +94,7 @@ export default function Dashboard({ user }) {
             <option value="JPY">JPY</option>
             <option value="CAD">CAD</option>
             <option value="AUD">AUD</option>
+            <option value="DKK">DKK</option>
           </select>
           <button onClick={handleSignOut} className="btn-secondary">
             Sign Out

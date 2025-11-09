@@ -10,6 +10,7 @@ const CURRENCY_RATES = {
   AUD: 1.52,
   CHF: 0.88,
   CNY: 7.20,
+  DKK: 6.85,
 }
 
 export function convertCurrency(amount, fromCurrency, toCurrency) {
@@ -40,6 +41,7 @@ export function getCurrencySymbol(currency = 'USD') {
     AUD: 'A$',
     CHF: 'CHF',
     CNY: '¥',
+    DKK: 'kr',
   }
   return symbols[currency] || '$'
 }

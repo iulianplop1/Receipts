@@ -543,6 +543,22 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
                   </div>
                   
                   <div className="review-field">
+                    <label>Currency</label>
+                    <select
+                      value={item.currency || 'USD'}
+                      onChange={(e) => handleReviewEdit(index, 'currency', e.target.value)}
+                    >
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                      <option value="GBP">GBP</option>
+                      <option value="JPY">JPY</option>
+                      <option value="CAD">CAD</option>
+                      <option value="AUD">AUD</option>
+                      <option value="DKK">DKK</option>
+                    </select>
+                  </div>
+                  
+                  <div className="review-field">
                     <label>Category</label>
                     <select
                       value={item.category}
