@@ -29,8 +29,16 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
     setError('')
 
     try {
-      const items = await analyzeReceipt(file)
-      setReviewItems(items.map(item => ({ ...item, currency: 'USD' })))
+      const result = await analyzeReceipt(file)
+      // Handle both old format (array) and new format (object with date and items)
+      const items = result.items || result
+      const receiptDate = result.date || new Date().toISOString().split('T')[0]
+      
+      setReviewItems(items.map(item => ({ 
+        ...item, 
+        currency: 'USD',
+        date: receiptDate // Use date from receipt
+      })))
       setMode('review')
     } catch (err) {
       setError('Failed to analyze receipt. Please try again.')
@@ -325,13 +333,18 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
 
     try {
       for (const item of reviewItems) {
+        // Use date from item if available, otherwise use today
+        const itemDate = item.date 
+          ? new Date(item.date).toISOString() 
+          : new Date().toISOString()
+        
         await addTransaction({
           user_id: userId,
           item: item.item,
           amount: parseFloat(item.amount),
           category: item.category,
           currency: item.currency || 'USD',
-          date: new Date().toISOString(),
+          date: itemDate,
         })
       }
       handleClose()
@@ -547,6 +560,15 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
                       <option>Subscriptions</option>
                       <option>Other</option>
                     </select>
+                  </div>
+                  
+                  <div className="review-field">
+                    <label>Date</label>
+                    <input
+                      type="date"
+                      value={item.date ? new Date(item.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                      onChange={(e) => handleReviewEdit(index, 'date', e.target.value)}
+                    />
                   </div>
                 </div>
               ))}

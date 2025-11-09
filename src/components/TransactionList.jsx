@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { formatCurrency, convertCurrency } from '../lib/currency'
 import { format } from 'date-fns'
-import { deleteTransaction } from '../lib/db'
+import { deleteTransaction, updateTransaction } from '../lib/db'
 import './TransactionList.css'
 
 const CATEGORY_COLORS = {
@@ -21,6 +21,8 @@ const CATEGORY_COLORS = {
 export default function TransactionList({ transactions, currency, onUpdate }) {
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('date')
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState({})
 
   const categories = [...new Set(transactions.map(t => t.category))]
 
@@ -49,6 +51,44 @@ export default function TransactionList({ transactions, currency, onUpdate }) {
         alert('Failed to delete transaction')
       }
     }
+  }
+
+  const handleEdit = (transaction) => {
+    setEditingId(transaction.id)
+    setEditForm({
+      item: transaction.item,
+      amount: transaction.amount,
+      category: transaction.category,
+      date: format(new Date(transaction.date), 'yyyy-MM-dd'),
+      currency: transaction.currency || 'USD'
+    })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setEditForm({})
+  }
+
+  const handleSaveEdit = async (id) => {
+    try {
+      await updateTransaction(id, {
+        item: editForm.item,
+        amount: parseFloat(editForm.amount),
+        category: editForm.category,
+        date: new Date(editForm.date).toISOString(),
+        currency: editForm.currency
+      })
+      setEditingId(null)
+      setEditForm({})
+      onUpdate()
+    } catch (error) {
+      console.error('Error updating transaction:', error)
+      alert('Failed to update transaction')
+    }
+  }
+
+  const handleEditFormChange = (field, value) => {
+    setEditForm(prev => ({ ...prev, [field]: value }))
   }
 
   const totalSpent = sortedTransactions.reduce((sum, t) => {
@@ -99,33 +139,109 @@ export default function TransactionList({ transactions, currency, onUpdate }) {
               )
               const categoryColor = CATEGORY_COLORS[transaction.category] || CATEGORY_COLORS.Other
 
+              const isEditing = editingId === transaction.id
+
               return (
                 <div key={transaction.id} className="transaction-item">
-                  <div className="transaction-main">
-                    <div
-                      className="category-indicator"
-                      style={{ backgroundColor: categoryColor }}
-                    />
-                    <div className="transaction-info">
-                      <div className="transaction-name">{transaction.item}</div>
-                      <div className="transaction-meta">
-                        <span className="transaction-category">{transaction.category}</span>
-                        <span className="transaction-date">
-                          {format(new Date(transaction.date), 'MMM d, yyyy')}
-                        </span>
+                  {isEditing ? (
+                    <div className="edit-form">
+                      <div className="edit-form-row">
+                        <input
+                          type="text"
+                          value={editForm.item}
+                          onChange={(e) => handleEditFormChange('item', e.target.value)}
+                          placeholder="Item name"
+                          className="edit-input"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editForm.amount}
+                          onChange={(e) => handleEditFormChange('amount', e.target.value)}
+                          placeholder="Amount"
+                          className="edit-input"
+                        />
+                      </div>
+                      <div className="edit-form-row">
+                        <select
+                          value={editForm.category}
+                          onChange={(e) => handleEditFormChange('category', e.target.value)}
+                          className="edit-select"
+                        >
+                          <option>Groceries</option>
+                          <option>Restaurants</option>
+                          <option>Transportation</option>
+                          <option>Shopping</option>
+                          <option>Entertainment</option>
+                          <option>Bills</option>
+                          <option>Healthcare</option>
+                          <option>Education</option>
+                          <option>Personal Care</option>
+                          <option>Subscriptions</option>
+                          <option>Other</option>
+                        </select>
+                        <input
+                          type="date"
+                          value={editForm.date}
+                          onChange={(e) => handleEditFormChange('date', e.target.value)}
+                          className="edit-input"
+                        />
+                      </div>
+                      <div className="edit-form-actions">
+                        <button
+                          className="save-btn"
+                          onClick={() => handleSaveEdit(transaction.id)}
+                        >
+                          Save
+                        </button>
+                        <button
+                          className="cancel-btn"
+                          onClick={handleCancelEdit}
+                        >
+                          Cancel
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  <div className="transaction-amount">
-                    {formatCurrency(amount, currency)}
-                    <button
-                      className="delete-btn"
-                      onClick={() => handleDelete(transaction.id)}
-                      aria-label="Delete transaction"
-                    >
-                      ×
-                    </button>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="transaction-main">
+                        <div
+                          className="category-indicator"
+                          style={{ backgroundColor: categoryColor }}
+                        />
+                        <div className="transaction-info">
+                          <div className="transaction-name">{transaction.item}</div>
+                          <div className="transaction-meta">
+                            <span className="transaction-category">{transaction.category}</span>
+                            <span className="transaction-date">
+                              {format(new Date(transaction.date), 'MMM d, yyyy')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="transaction-amount">
+                        {formatCurrency(amount, currency)}
+                        <div className="transaction-actions">
+                          <button
+                            className="edit-btn"
+                            onClick={() => handleEdit(transaction)}
+                            aria-label="Edit transaction"
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            className="delete-btn"
+                            onClick={() => handleDelete(transaction.id)}
+                            aria-label="Delete transaction"
+                            title="Delete"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )
             })}

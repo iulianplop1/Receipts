@@ -67,24 +67,35 @@ IMPORTANT RULES:
 3. List EVERY item on the receipt, even if they're the same item
 4. If you see "2 PS" or similar, that means 2 of that item - create 2 separate entries
 
-Return a JSON array with this exact structure:
-[
-  {
-    "item": "item name",
-    "amount": 0.00,
-    "category": "category name"
-  }
-]
+Return a JSON object with this exact structure:
+{
+  "date": "YYYY-MM-DD",
+  "items": [
+    {
+      "item": "item name",
+      "amount": 0.00,
+      "category": "category name"
+    }
+  ]
+}
+
+IMPORTANT:
+- Extract the purchase date from the receipt (look for date, transaction date, purchase date, etc.)
+- If no date is found, use today's date in YYYY-MM-DD format
+- The date should be the actual purchase date from the receipt, not today
 
 Categories should be: Groceries, Restaurants, Transportation, Shopping, Entertainment, Bills, Healthcare, Education, Personal Care, Subscriptions, Other.
 
-Example: If receipt shows "Apple 2 @ $1.50", return:
-[
-  {"item": "Apple", "amount": 1.50, "category": "Groceries"},
-  {"item": "Apple", "amount": 1.50, "category": "Groceries"}
-]
+Example: If receipt shows "Date: 2024-01-15" and "Apple 2 @ $1.50", return:
+{
+  "date": "2024-01-15",
+  "items": [
+    {"item": "Apple", "amount": 1.50, "category": "Groceries"},
+    {"item": "Apple", "amount": 1.50, "category": "Groceries"}
+  ]
+}
 
-Be accurate with amounts and item names. If you can't determine a category, use "Other".`
+Be accurate with amounts, item names, and dates. If you can't determine a category, use "Other".`
 
   // First, try to get available models
   let availableModels = []
@@ -133,12 +144,30 @@ Be accurate with amounts and item names. If you can't determine a category, use 
       
       const response = await result.response
       const text = response.text()
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      // Try to match JSON object first (with date), then fall back to array
+      const jsonObjectMatch = text.match(/\{[\s\S]*"items"[\s\S]*\}/);
+      const jsonArrayMatch = text.match(/\[[\s\S]*\]/);
       
-      if (jsonMatch) {
+      if (jsonObjectMatch) {
         model = testModel // Save working model for future use
         console.log(`Successfully using model: ${cleanModelName}`)
-        return JSON.parse(jsonMatch[0])
+        const parsed = JSON.parse(jsonObjectMatch[0])
+        // If it's an object with items array, return it
+        if (parsed.items && Array.isArray(parsed.items)) {
+          return parsed
+        }
+      }
+      
+      // Fallback to array format (for backward compatibility)
+      if (jsonArrayMatch) {
+        model = testModel
+        console.log(`Successfully using model: ${cleanModelName} (array format)`)
+        // Convert array to object format with today's date
+        const items = JSON.parse(jsonArrayMatch[0])
+        return {
+          date: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD
+          items: items
+        }
       }
       
       throw new Error('Could not parse receipt data')

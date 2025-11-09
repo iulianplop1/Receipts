@@ -111,27 +111,113 @@
   gap: 12px;
 }
 
+.transaction-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-btn,
 .delete-btn {
   background: none;
+  border: none;
   color: var(--text-secondary);
-  font-size: 24px;
+  font-size: 20px;
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 6px;
+  cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s, background 0.2s;
 }
 
+.transaction-item:hover .edit-btn,
 .transaction-item:hover .delete-btn {
   opacity: 1;
+}
+
+.edit-btn:hover {
+  background: #DBEAFE;
+  color: #3B82F6;
 }
 
 .delete-btn:hover {
   background: #FEE2E2;
   color: var(--error);
+}
+
+/* Edit Form Styles */
+.edit-form {
+  width: 100%;
+  padding: 16px;
+  background: var(--background);
+  border-radius: 12px;
+  border: 2px solid var(--border);
+}
+
+.edit-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.edit-input,
+.edit-select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.edit-input:focus,
+.edit-select:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.edit-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.save-btn,
+.cancel-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.save-btn {
+  background: #10B981;
+  color: white;
+}
+
+.save-btn:hover {
+  background: #059669;
+}
+
+.cancel-btn {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.cancel-btn:hover {
+  background: var(--text-secondary);
+  color: var(--surface);
 }
 
 .empty-state {
@@ -152,8 +238,13 @@
     justify-content: space-between;
   }
 
+  .edit-btn,
   .delete-btn {
     opacity: 1;
+  }
+
+  .edit-form-row {
+    grid-template-columns: 1fr;
   }
 }
 
