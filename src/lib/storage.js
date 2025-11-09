@@ -10,12 +10,17 @@ import { supabase } from './supabase'
 export async function uploadReceiptImage(file, userId, transactionId = null) {
   try {
     // Generate a unique filename
-    const fileExt = file.name.split('.').pop()
-    const fileName = transactionId 
-      ? `${transactionId}.${fileExt}`
-      : `${userId}/${Date.now()}.${fileExt}`
+    const fileExt = file.name.split('.').pop() || 'jpg'
+    const timestamp = Date.now()
+    const randomId = Math.random().toString(36).substring(2, 9)
     
-    const filePath = `receipts/${fileName}`
+    // Use user ID as folder structure for better organization and RLS
+    const fileName = transactionId 
+      ? `${transactionId}-${timestamp}.${fileExt}`
+      : `${timestamp}-${randomId}.${fileExt}`
+    
+    // Store in user-specific folder for RLS policies
+    const filePath = `${userId}/${fileName}`
 
     // Upload the file
     const { data, error } = await supabase.storage
@@ -26,10 +31,14 @@ export async function uploadReceiptImage(file, userId, transactionId = null) {
       })
 
     if (error) {
-      // If bucket doesn't exist, try to create it (this might fail if user doesn't have permission)
-      if (error.message.includes('Bucket not found')) {
-        throw new Error('Receipts storage bucket not found. Please create a "receipts" bucket in Supabase Storage.')
+      // Provide helpful error messages
+      if (error.message.includes('Bucket not found') || error.message.includes('not found')) {
+        throw new Error('Receipts storage bucket not found. Please create a "receipts" bucket in Supabase Storage and set up the storage policies.')
       }
+      if (error.message.includes('row-level security') || error.message.includes('RLS')) {
+        throw new Error('Storage RLS policy error. Please check that the storage bucket has the correct policies set up. See SETUP_NEW_FEATURES.md for instructions.')
+      }
+      console.error('Storage upload error:', error)
       throw error
     }
 

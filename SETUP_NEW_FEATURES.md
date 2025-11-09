@@ -17,41 +17,56 @@ ADD COLUMN IF NOT EXISTS receipt_image_url TEXT;
 2. Navigate to **Storage** in the left sidebar
 3. Click **New bucket**
 4. Name it `receipts`
-5. Make it **Public** (or set up proper RLS policies)
+5. **IMPORTANT**: Choose one of these options:
+   - **Option A (Easiest)**: Make it **Public** - Check the "Public bucket" checkbox
+   - **Option B (More Secure)**: Keep it private and set up RLS policies (see below)
 6. Click **Create bucket**
 
-### Storage Policies (Optional - for Private Buckets)
-If you want to keep receipts private, create these policies in **Storage > Policies**:
+### Storage Policies (REQUIRED if bucket is Private)
+If you did NOT make the bucket public, you MUST create these policies in **Storage > Policies**:
+
+**Step 1: Go to Storage > Policies**
+- Click on the `receipts` bucket
+- Click on "Policies" tab
+- Click "New Policy"
 
 **Policy 1: Users can upload their own receipts**
+- Policy name: "Users can upload their own receipts"
+- Allowed operation: INSERT
+- Policy definition: Use this SQL:
 ```sql
-CREATE POLICY "Users can upload their own receipts"
-  ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'receipts' AND
-    auth.uid()::text = (storage.foldername(name))[1]
-  );
+bucket_id = 'receipts' AND (storage.foldername(name))[1] = auth.uid()::text
 ```
 
 **Policy 2: Users can view their own receipts**
+- Policy name: "Users can view their own receipts"
+- Allowed operation: SELECT
+- Policy definition: Use this SQL:
 ```sql
-CREATE POLICY "Users can view their own receipts"
-  ON storage.objects FOR SELECT
-  USING (
-    bucket_id = 'receipts' AND
-    auth.uid()::text = (storage.foldername(name))[1]
-  );
+bucket_id = 'receipts' AND (storage.foldername(name))[1] = auth.uid()::text
 ```
 
 **Policy 3: Users can delete their own receipts**
+- Policy name: "Users can delete their own receipts"
+- Allowed operation: DELETE
+- Policy definition: Use this SQL:
 ```sql
-CREATE POLICY "Users can delete their own receipts"
-  ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'receipts' AND
-    auth.uid()::text = (storage.foldername(name))[1]
-  );
+bucket_id = 'receipts' AND (storage.foldername(name))[1] = auth.uid()::text
 ```
+
+**Alternative: If you want to make it simpler, use this single policy for all operations:**
+- Policy name: "Users can manage their own receipts"
+- Allowed operations: SELECT, INSERT, DELETE
+- Policy definition:
+```sql
+bucket_id = 'receipts' AND (storage.foldername(name))[1] = auth.uid()::text
+```
+
+### Quick Fix for RLS Errors
+If you're getting RLS policy errors:
+1. **Easiest solution**: Delete the bucket and recreate it as **Public**
+2. **Or**: Make sure all three policies above are created correctly
+3. **Or**: Use the single combined policy for all operations
 
 ### How It Works
 - When you scan a receipt photo, the image is automatically uploaded to Supabase Storage
