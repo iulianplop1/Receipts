@@ -29,8 +29,13 @@ jobs:
       
       - name: Verify build output
         run: |
+          echo "Checking dist folder contents:"
           ls -la dist/
-          echo "Build completed successfully"
+          echo ""
+          echo "Checking if index.html exists:"
+          cat dist/index.html | head -20
+          echo ""
+          echo "Build verification complete"
           
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
@@ -38,4 +43,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           cname: false
+          keep_files: false
 
