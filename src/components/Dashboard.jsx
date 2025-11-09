@@ -150,6 +150,7 @@ export default function Dashboard({ user }) {
           <BudgetOverview
             transactions={transactions}
             budgets={budgets}
+            subscriptions={subscriptions}
             currency={selectedCurrency}
             onBudgetUpdate={loadData}
             userId={user.id}
@@ -165,6 +166,7 @@ export default function Dashboard({ user }) {
 
           <TransactionList
             transactions={transactions}
+            subscriptions={subscriptions}
             currency={selectedCurrency}
             onUpdate={loadData}
           />

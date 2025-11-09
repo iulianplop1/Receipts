@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { formatCurrency, convertCurrency } from '../lib/currency'
+import { calculateMonthlySubscriptionCost } from '../lib/subscriptionUtils'
 import { format } from 'date-fns'
 import { deleteTransaction, updateTransaction } from '../lib/db'
 import './TransactionList.css'
@@ -18,7 +19,7 @@ const CATEGORY_COLORS = {
   Other: '#6B7280',
 }
 
-export default function TransactionList({ transactions, currency, onUpdate }) {
+export default function TransactionList({ transactions, currency, onUpdate, subscriptions = [] }) {
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('date')
   const [editingId, setEditingId] = useState(null)
@@ -92,9 +93,14 @@ export default function TransactionList({ transactions, currency, onUpdate }) {
     setEditForm(prev => ({ ...prev, [field]: value }))
   }
 
-  const totalSpent = sortedTransactions.reduce((sum, t) => {
+  // Calculate total from transactions
+  const transactionTotal = sortedTransactions.reduce((sum, t) => {
     return sum + convertCurrency(t.amount, t.currency || 'USD', currency)
   }, 0)
+
+  // Add subscription costs for current month
+  const monthlySubscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency)
+  const totalSpent = transactionTotal + monthlySubscriptionCost
 
   return (
     <div className="transaction-list-card">
@@ -129,7 +135,15 @@ export default function TransactionList({ transactions, currency, onUpdate }) {
       ) : (
         <>
           <div className="total-spent">
-            Total: {formatCurrency(totalSpent, currency)}
+            <div className="total-breakdown">
+              <div>Transactions: {formatCurrency(transactionTotal, currency)}</div>
+              {monthlySubscriptionCost > 0 && (
+                <div className="subscription-cost">
+                  Subscriptions (this month): {formatCurrency(monthlySubscriptionCost, currency)}
+                </div>
+              )}
+              <div className="total-amount">Total: {formatCurrency(totalSpent, currency)}</div>
+            </div>
           </div>
           <div className="transaction-list">
             {sortedTransactions.map(transaction => {
@@ -181,6 +195,21 @@ export default function TransactionList({ transactions, currency, onUpdate }) {
                           <option>Subscriptions</option>
                           <option>Other</option>
                         </select>
+                        <select
+                          value={editForm.currency || 'USD'}
+                          onChange={(e) => handleEditFormChange('currency', e.target.value)}
+                          className="edit-select"
+                        >
+                          <option value="USD">USD</option>
+                          <option value="EUR">EUR</option>
+                          <option value="GBP">GBP</option>
+                          <option value="JPY">JPY</option>
+                          <option value="CAD">CAD</option>
+                          <option value="AUD">AUD</option>
+                          <option value="DKK">DKK</option>
+                        </select>
+                      </div>
+                      <div className="edit-form-row">
                         <input
                           type="date"
                           value={editForm.date}

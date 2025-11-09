@@ -44,6 +44,32 @@
   border-bottom: 1px solid var(--border);
 }
 
+.total-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.total-breakdown > div {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.subscription-cost {
+  color: #06B6D4;
+  font-weight: 500;
+}
+
+.total-amount {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
 .transaction-list {
   display: flex;
   flex-direction: column;

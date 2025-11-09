@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { formatCurrency, convertCurrency } from '../lib/currency'
 import { upsertBudget } from '../lib/db'
+import { calculateMonthlySubscriptionCost } from '../lib/subscriptionUtils'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import './BudgetOverview.css'
 
@@ -18,17 +19,23 @@ const CATEGORY_COLORS = {
   Other: '#6B7280',
 }
 
-export default function BudgetOverview({ transactions, budgets, currency, onBudgetUpdate, userId }) {
+export default function BudgetOverview({ transactions, budgets, currency, onBudgetUpdate, userId, subscriptions = [] }) {
   const [showAddBudget, setShowAddBudget] = useState(false)
   const [newCategory, setNewCategory] = useState('')
   const [newAmount, setNewAmount] = useState('')
 
-  // Calculate spending by category
+  // Calculate spending by category from transactions
   const spendingByCategory = transactions.reduce((acc, t) => {
     const amount = convertCurrency(t.amount, t.currency || 'USD', currency)
     acc[t.category] = (acc[t.category] || 0) + amount
     return acc
   }, {})
+
+  // Add subscription costs to Subscriptions category
+  const monthlySubscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency)
+  if (monthlySubscriptionCost > 0) {
+    spendingByCategory['Subscriptions'] = (spendingByCategory['Subscriptions'] || 0) + monthlySubscriptionCost
+  }
 
   // Combine with budgets
   const budgetData = Object.entries(spendingByCategory).map(([category, spent]) => {

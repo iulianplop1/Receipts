@@ -271,3 +271,19 @@
   background: var(--border);
 }
 
+.subscription-billing-date {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.billing-days {
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.billing-days.soon {
+  color: #F59E0B;
+  font-weight: 600;
+}
+

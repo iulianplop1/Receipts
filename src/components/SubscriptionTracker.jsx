@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { formatCurrency, convertCurrency } from '../lib/currency'
 import { updateSubscription, addSubscription, deleteSubscription } from '../lib/db'
+import { getNextBillingDate } from '../lib/subscriptionUtils'
 import { format } from 'date-fns'
 import './SubscriptionTracker.css'
 
@@ -11,7 +12,8 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
     name: '',
     amount: '',
     currency: 'USD',
-    frequency: 'month'
+    frequency: 'month',
+    start_date: new Date().toISOString().split('T')[0]
   })
   const [adding, setAdding] = useState(false)
 
@@ -46,23 +48,37 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
 
   const handleAddSubscription = async (e) => {
     e.preventDefault()
-    if (!newSubscription.name || !newSubscription.amount) {
-      alert('Please fill in all fields')
+    if (!newSubscription.name || !newSubscription.amount || !newSubscription.start_date) {
+      alert('Please fill in all required fields')
       return
     }
 
     setAdding(true)
     try {
+      // Calculate next billing date
+      const nextBillingDate = getNextBillingDate(
+        newSubscription.start_date,
+        newSubscription.frequency
+      )
+
       await addSubscription({
         user_id: userId,
         name: newSubscription.name,
         amount: parseFloat(newSubscription.amount),
         currency: newSubscription.currency,
         frequency: newSubscription.frequency,
+        start_date: newSubscription.start_date,
+        next_billing_date: nextBillingDate,
         active: true
       })
       setShowAddModal(false)
-      setNewSubscription({ name: '', amount: '', currency: 'USD', frequency: 'month' })
+      setNewSubscription({ 
+        name: '', 
+        amount: '', 
+        currency: 'USD', 
+        frequency: 'month',
+        start_date: new Date().toISOString().split('T')[0]
+      })
       onUpdate()
     } catch (error) {
       console.error('Error adding subscription:', error)
@@ -102,8 +118,14 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
 
       {subscriptions.length > 0 && (
         <div className="subscriptions-list">
-          {subscriptions.map(sub => {
+            {subscriptions.map(sub => {
             const amount = convertCurrency(sub.amount, sub.currency || 'USD', currency)
+            const nextBilling = sub.next_billing_date 
+              ? format(new Date(sub.next_billing_date), 'MMM d, yyyy')
+              : 'Not set'
+            const daysUntilBilling = sub.next_billing_date
+              ? Math.ceil((new Date(sub.next_billing_date) - new Date()) / (1000 * 60 * 60 * 24))
+              : null
             return (
               <div key={sub.id} className="subscription-item">
                 <div className="subscription-info">
@@ -111,6 +133,21 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
                   <div className="subscription-details">
                     {formatCurrency(amount, currency)} / {sub.frequency || 'month'}
                   </div>
+                  {sub.next_billing_date && (
+                    <div className="subscription-billing-date">
+                      Next billing: {nextBilling}
+                      {daysUntilBilling !== null && (
+                        <span className={`billing-days ${daysUntilBilling <= 7 ? 'soon' : ''}`}>
+                          {daysUntilBilling > 0 
+                            ? ` (${daysUntilBilling} days)`
+                            : daysUntilBilling === 0
+                            ? ' (Today!)'
+                            : ` (${Math.abs(daysUntilBilling)} days ago)`
+                          }
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="subscription-actions">
                   <button
@@ -196,16 +233,27 @@ export default function SubscriptionTracker({ subscriptions, transactions, curre
                   </select>
                 </div>
               </div>
-              <div className="form-field">
-                <label>Frequency</label>
-                <select
-                  value={newSubscription.frequency}
-                  onChange={(e) => setNewSubscription({ ...newSubscription, frequency: e.target.value })}
-                >
-                  <option value="month">Monthly</option>
-                  <option value="year">Yearly</option>
-                  <option value="week">Weekly</option>
-                </select>
+              <div className="form-row">
+                <div className="form-field">
+                  <label>Frequency</label>
+                  <select
+                    value={newSubscription.frequency}
+                    onChange={(e) => setNewSubscription({ ...newSubscription, frequency: e.target.value })}
+                  >
+                    <option value="month">Monthly</option>
+                    <option value="year">Yearly</option>
+                    <option value="week">Weekly</option>
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label>Start Date</label>
+                  <input
+                    type="date"
+                    value={newSubscription.start_date}
+                    onChange={(e) => setNewSubscription({ ...newSubscription, start_date: e.target.value })}
+                    required
+                  />
+                </div>
               </div>
               <div className="form-actions">
                 <button type="submit" className="btn-primary" disabled={adding}>
