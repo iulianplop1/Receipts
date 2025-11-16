@@ -57,6 +57,72 @@ async function getAvailableModel() {
 // Initialize model - will be set when first used
 let model = null
 
+/**
+ * Resolve ambiguous dates by checking which interpretation is closer to today
+ * For example, "10/11/25" could be Oct 10 or Nov 11 - we pick the one closer to today
+ */
+function resolveAmbiguousDate(dateStr) {
+  const today = new Date()
+  const currentYear = today.getFullYear()
+  const currentYearShort = currentYear % 100 // Last 2 digits (e.g., 25 for 2025)
+  
+  // Try to parse as DD/MM/YY or MM/DD/YY
+  const slashMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (slashMatch) {
+    const [, part1, part2, yearPart] = slashMatch
+    const num1 = parseInt(part1)
+    const num2 = parseInt(part2)
+    const yearNum = parseInt(yearPart)
+    
+    // If year matches current year (or last 2 digits match)
+    const isCurrentYear = yearNum === currentYear || (yearPart.length === 2 && yearNum === currentYearShort)
+    
+    if (isCurrentYear && num1 <= 12 && num2 <= 12 && num1 !== num2) {
+      // Both could be months, so it's ambiguous
+      // Try both interpretations: DD/MM/YY and MM/DD/YY
+      const fullYear = yearPart.length === 2 ? 2000 + yearNum : yearNum
+      
+      // Option 1: DD/MM/YY (day/month/year)
+      let date1
+      try {
+        date1 = new Date(fullYear, num2 - 1, num1) // month is 0-indexed
+      } catch (e) {
+        date1 = null
+      }
+      
+      // Option 2: MM/DD/YY (month/day/year)
+      let date2
+      try {
+        date2 = new Date(fullYear, num1 - 1, num2) // month is 0-indexed
+      } catch (e) {
+        date2 = null
+      }
+      
+      // Check which date is valid and closer to today
+      if (date1 && date2) {
+        const diff1 = Math.abs(today - date1)
+        const diff2 = Math.abs(today - date2)
+        
+        // Return the one closer to today
+        return diff1 < diff2 ? date1 : date2
+      } else if (date1) {
+        return date1
+      } else if (date2) {
+        return date2
+      }
+    }
+  }
+  
+  // Try standard YYYY-MM-DD format
+  const dashMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (dashMatch) {
+    const [, year, month, day] = dashMatch.map(Number)
+    return new Date(year, month - 1, day)
+  }
+  
+  return null
+}
+
 export async function analyzeReceipt(imageFile) {
   const imageData = await fileToBase64(imageFile)
   const prompt = `Analyze this receipt image and extract ALL transactions. Pay close attention to quantities and calculate totals correctly.
@@ -182,18 +248,34 @@ Be accurate with amounts, item names, and dates. Always calculate the final pric
             const maxFutureDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()) // 1 year in future
             
             try {
-              const [year, month, day] = receiptDate.split('-').map(Number)
-              const dateObj = new Date(year, month - 1, day)
+              let dateObj = null
+              
+              // First try to resolve ambiguous dates (like 10/11/25)
+              const resolvedDate = resolveAmbiguousDate(receiptDate)
+              if (resolvedDate && !isNaN(resolvedDate.getTime())) {
+                dateObj = resolvedDate
+              } else {
+                // Try standard YYYY-MM-DD format
+                const [year, month, day] = receiptDate.split('-').map(Number)
+                if (year && month && day) {
+                  dateObj = new Date(year, month - 1, day)
+                }
+              }
               
               // Check if date is reasonable (not too far in past or future)
-              if (dateObj < maxPastDate || dateObj > maxFutureDate) {
-                console.warn(`Date ${receiptDate} seems invalid, using today's date`)
-                receiptDate = today.toISOString().split('T')[0]
+              if (dateObj && !isNaN(dateObj.getTime())) {
+                if (dateObj < maxPastDate || dateObj > maxFutureDate) {
+                  console.warn(`Date ${receiptDate} seems invalid (out of range), using today's date`)
+                  receiptDate = today.toISOString().split('T')[0]
+                } else {
+                  receiptDate = dateObj.toISOString().split('T')[0]
+                }
               } else {
-                receiptDate = dateObj.toISOString().split('T')[0]
+                console.warn(`Invalid date format ${receiptDate}, using today's date`)
+                receiptDate = today.toISOString().split('T')[0]
               }
             } catch (e) {
-              console.warn(`Invalid date format ${receiptDate}, using today's date`)
+              console.warn(`Error parsing date ${receiptDate}, using today's date:`, e)
               receiptDate = today.toISOString().split('T')[0]
             }
           } else {
