@@ -66,7 +66,8 @@ IMPORTANT RULES:
 2. If quantity is shown (e.g., "2 @ $1.50"), calculate: amount = quantity × unit_price
 3. List EVERY item on the receipt, even if they're the same item
 4. If you see "2 PS" or similar, that means 2 of that item - create 2 separate entries
-5. Only include items with positive amounts (actual purchases) - do not include items with negative or zero amounts
+5. CRITICAL: If an item has a discount, rabat, or reduction applied to it, calculate the FINAL price after discount. For example, if an item costs 20 DKK and has -8 DKK rabat, the final amount should be 12 DKK (20 - 8 = 12). Always use the final price after any discounts.
+6. Only include items with positive final amounts (actual purchases) - do not include items with negative or zero amounts after discounts are applied
 
 Return a JSON object with this exact structure:
 {
@@ -89,7 +90,7 @@ IMPORTANT:
 
 Categories should be: Groceries, Restaurants, Transportation, Shopping, Entertainment, Bills, Healthcare, Education, Personal Care, Subscriptions, Other.
 
-Example: If receipt shows "Date: 2024-01-15" and "Apple 2 @ $1.50", return:
+Example 1: If receipt shows "Date: 2024-01-15" and "Apple 2 @ $1.50", return:
 {
   "date": "2024-01-15",
   "items": [
@@ -98,7 +99,16 @@ Example: If receipt shows "Date: 2024-01-15" and "Apple 2 @ $1.50", return:
   ]
 }
 
-Be accurate with amounts, item names, and dates. If you can't determine a category, use "Other".`
+Example 2: If receipt shows "Item: 20 DKK" and below it "-8 DKK rabat", return:
+{
+  "date": "2024-01-15",
+  "items": [
+    {"item": "Item", "amount": 12.00, "category": "Other"}
+  ]
+}
+Note: The amount is 12 (20 - 8), not 20, because the discount must be subtracted.
+
+Be accurate with amounts, item names, and dates. Always calculate the final price after discounts. If you can't determine a category, use "Other".`
 
   // First, try to get available models
   let availableModels = []
