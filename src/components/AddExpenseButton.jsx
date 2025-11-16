@@ -24,29 +24,70 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
   const audioBlobRef = useRef(null) // Store blob in ref to prevent loss
 
   const handlePhotoUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
 
     setLoading(true)
     setError('')
 
     try {
-      // Store the file for later upload
-      setReceiptFile(file)
+      // Process all selected images
+      const allItems = []
+      let receiptDate = null
       
-      const result = await analyzeReceipt(file)
-      // Handle both old format (array) and new format (object with date and items)
-      const items = result.items || result
-      const receiptDate = result.date || new Date().toISOString().split('T')[0]
+      for (const file of files) {
+        try {
+          const result = await analyzeReceipt(file)
+          // Handle both old format (array) and new format (object with date and items)
+          const items = result.items || result
+          const date = result.date || new Date().toISOString().split('T')[0]
+          
+          // Use the first valid date we find
+          if (result.date && !receiptDate) {
+            receiptDate = date
+          } else if (!receiptDate) {
+            receiptDate = date
+          }
+          
+          // Filter out discount/rabat items (additional client-side filtering)
+          const filteredItems = items.filter(item => {
+            const itemName = (item.item || '').toLowerCase()
+            const isDiscount = itemName.includes('discount') || itemName.includes('rabat') || 
+                              itemName.includes('reduction') || itemName.includes('rebate') ||
+                              itemName.includes('refund') || itemName.includes('return')
+            const hasNegativeAmount = parseFloat(item.amount || 0) <= 0
+            return !isDiscount && !hasNegativeAmount
+          })
+          
+          allItems.push(...filteredItems.map(item => ({ 
+            ...item, 
+            currency: 'DKK',
+            date: date || receiptDate || new Date().toISOString().split('T')[0] // Use date from receipt
+          })))
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError)
+          // Continue with other files even if one fails
+        }
+      }
       
-      setReviewItems(items.map(item => ({ 
-        ...item, 
-        currency: 'DKK',
-        date: receiptDate // Use date from receipt
-      })))
+      if (allItems.length === 0) {
+        setError('No valid items found in the receipts. Please make sure the images contain valid purchase items.')
+        setLoading(false)
+        return
+      }
+      
+      // Store the first file for upload (or we could store all files)
+      setReceiptFile(files[0])
+      
+      setReviewItems(allItems)
       setMode('review')
     } catch (err) {
-      setError('Failed to analyze receipt. Please try again.')
+      const errorMsg = err.message || 'Failed to analyze receipt. Please try again.'
+      if (errorMsg.includes('overloaded')) {
+        setError('The AI service is currently busy. Please wait a moment and try again.')
+      } else {
+        setError(errorMsg)
+      }
       console.error(err)
     } finally {
       setLoading(false)
@@ -446,7 +487,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
                 }}
               >
                 <span className="mode-icon">📸</span>
-                <span className="mode-label">Scan Receipt</span>
+                <span className="mode-label">Scan Receipt(s)</span>
               </button>
               
               <button
@@ -470,6 +511,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               onChange={handlePhotoUpload}
               style={{ display: 'none' }}
             />

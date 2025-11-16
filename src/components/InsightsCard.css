@@ -40,3 +40,21 @@
   margin: 0;
 }
 
+@media (max-width: 768px) {
+  .insights-card {
+    padding: 20px;
+  }
+
+  .insights-title {
+    font-size: 18px;
+  }
+
+  .insight-item {
+    padding: 12px;
+  }
+
+  .insight-message {
+    font-size: 14px;
+  }
+}
+

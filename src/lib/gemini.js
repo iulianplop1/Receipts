@@ -66,6 +66,8 @@ IMPORTANT RULES:
 2. If quantity is shown (e.g., "2 @ $1.50"), calculate: amount = quantity × unit_price
 3. List EVERY item on the receipt, even if they're the same item
 4. If you see "2 PS" or similar, that means 2 of that item - create 2 separate entries
+5. DO NOT include discount, rabat, reduction, rebate, or any negative amount items - these are not purchases and should be excluded
+6. Only include items with positive amounts (actual purchases)
 
 Return a JSON object with this exact structure:
 {
@@ -81,8 +83,10 @@ Return a JSON object with this exact structure:
 
 IMPORTANT:
 - Extract the purchase date from the receipt (look for date, transaction date, purchase date, etc.)
-- If no date is found, use today's date in YYYY-MM-DD format
+- The date must be a valid date from the receipt, not a random date
+- If no date is found or the date seems invalid, use today's date in YYYY-MM-DD format
 - The date should be the actual purchase date from the receipt, not today
+- Do not extract dates that are clearly wrong (e.g., dates from many years in the past or future)
 
 Categories should be: Groceries, Restaurants, Transportation, Shopping, Entertainment, Bills, Healthcare, Education, Personal Care, Subscriptions, Other.
 
@@ -154,7 +158,47 @@ Be accurate with amounts, item names, and dates. If you can't determine a catego
         const parsed = JSON.parse(jsonObjectMatch[0])
         // If it's an object with items array, return it
         if (parsed.items && Array.isArray(parsed.items)) {
-          return parsed
+          // Filter out discount/rabat items and validate date
+          const filteredItems = parsed.items.filter(item => {
+            // Filter out items with negative amounts or discount-related names
+            const itemName = (item.item || '').toLowerCase()
+            const isDiscount = itemName.includes('discount') || itemName.includes('rabat') || 
+                              itemName.includes('reduction') || itemName.includes('rebate') ||
+                              itemName.includes('refund') || itemName.includes('return')
+            const hasNegativeAmount = parseFloat(item.amount || 0) <= 0
+            return !isDiscount && !hasNegativeAmount
+          })
+          
+          // Validate and fix date
+          let receiptDate = parsed.date
+          if (receiptDate) {
+            const today = new Date()
+            const maxPastDate = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate()) // 2 years ago
+            const maxFutureDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()) // 1 year in future
+            
+            try {
+              const [year, month, day] = receiptDate.split('-').map(Number)
+              const dateObj = new Date(year, month - 1, day)
+              
+              // Check if date is reasonable (not too far in past or future)
+              if (dateObj < maxPastDate || dateObj > maxFutureDate) {
+                console.warn(`Date ${receiptDate} seems invalid, using today's date`)
+                receiptDate = today.toISOString().split('T')[0]
+              } else {
+                receiptDate = dateObj.toISOString().split('T')[0]
+              }
+            } catch (e) {
+              console.warn(`Invalid date format ${receiptDate}, using today's date`)
+              receiptDate = today.toISOString().split('T')[0]
+            }
+          } else {
+            receiptDate = new Date().toISOString().split('T')[0]
+          }
+          
+          return {
+            date: receiptDate,
+            items: filteredItems
+          }
         }
       }
       
@@ -164,9 +208,20 @@ Be accurate with amounts, item names, and dates. If you can't determine a catego
         console.log(`Successfully using model: ${cleanModelName} (array format)`)
         // Convert array to object format with today's date
         const items = JSON.parse(jsonArrayMatch[0])
+        
+        // Filter out discount/rabat items
+        const filteredItems = items.filter(item => {
+          const itemName = (item.item || '').toLowerCase()
+          const isDiscount = itemName.includes('discount') || itemName.includes('rabat') || 
+                            itemName.includes('reduction') || itemName.includes('rebate') ||
+                            itemName.includes('refund') || itemName.includes('return')
+          const hasNegativeAmount = parseFloat(item.amount || 0) <= 0
+          return !isDiscount && !hasNegativeAmount
+        })
+        
         return {
           date: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD
-          items: items
+          items: filteredItems
         }
       }
       
@@ -174,7 +229,16 @@ Be accurate with amounts, item names, and dates. If you can't determine a catego
     } catch (error) {
       console.log(`Model ${modelName} failed:`, error.message)
       lastError = error
-      // Continue to next model
+      
+      // Check for overload/rate limit errors - try next model instead of failing immediately
+      const errorMessage = error.message || ''
+      if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('overloaded') || errorMessage.includes('resource exhausted')) {
+        console.log(`Model ${modelName} is overloaded, trying next model...`)
+        // Continue to next model
+        continue
+      }
+      
+      // Continue to next model for other errors too
       continue
     }
   }
@@ -184,6 +248,9 @@ Be accurate with amounts, item names, and dates. If you can't determine a catego
   const errorMessage = lastError?.message || 'Unknown error'
   if (errorMessage.includes('404') || errorMessage.includes('not found')) {
     throw new Error(`API key may not have access to Gemini models, or the models are not available. Please check your API key permissions. Error: ${errorMessage}`)
+  }
+  if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('overloaded') || errorMessage.includes('resource exhausted')) {
+    throw new Error('The AI service is currently overloaded. Please wait a moment and try again.')
   }
   throw new Error(`Failed to analyze receipt with any available model. Please check your API key. Last error: ${errorMessage}`)
 }
