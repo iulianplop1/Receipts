@@ -49,14 +49,10 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
             receiptDate = date
           }
           
-          // Filter out discount/rabat items (additional client-side filtering)
+          // Filter out items with negative amounts (additional client-side filtering)
           const filteredItems = items.filter(item => {
-            const itemName = (item.item || '').toLowerCase()
-            const isDiscount = itemName.includes('discount') || itemName.includes('rabat') || 
-                              itemName.includes('reduction') || itemName.includes('rebate') ||
-                              itemName.includes('refund') || itemName.includes('return')
             const hasNegativeAmount = parseFloat(item.amount || 0) <= 0
-            return !isDiscount && !hasNegativeAmount
+            return !hasNegativeAmount
           })
           
           allItems.push(...filteredItems.map(item => ({ 

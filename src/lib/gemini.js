@@ -66,8 +66,7 @@ IMPORTANT RULES:
 2. If quantity is shown (e.g., "2 @ $1.50"), calculate: amount = quantity × unit_price
 3. List EVERY item on the receipt, even if they're the same item
 4. If you see "2 PS" or similar, that means 2 of that item - create 2 separate entries
-5. DO NOT include discount, rabat, reduction, rebate, or any negative amount items - these are not purchases and should be excluded
-6. Only include items with positive amounts (actual purchases)
+5. Only include items with positive amounts (actual purchases) - do not include items with negative or zero amounts
 
 Return a JSON object with this exact structure:
 {
@@ -158,15 +157,11 @@ Be accurate with amounts, item names, and dates. If you can't determine a catego
         const parsed = JSON.parse(jsonObjectMatch[0])
         // If it's an object with items array, return it
         if (parsed.items && Array.isArray(parsed.items)) {
-          // Filter out discount/rabat items and validate date
+          // Filter out items with negative amounts and validate date
           const filteredItems = parsed.items.filter(item => {
-            // Filter out items with negative amounts or discount-related names
-            const itemName = (item.item || '').toLowerCase()
-            const isDiscount = itemName.includes('discount') || itemName.includes('rabat') || 
-                              itemName.includes('reduction') || itemName.includes('rebate') ||
-                              itemName.includes('refund') || itemName.includes('return')
+            // Only filter out items with negative or zero amounts
             const hasNegativeAmount = parseFloat(item.amount || 0) <= 0
-            return !isDiscount && !hasNegativeAmount
+            return !hasNegativeAmount
           })
           
           // Validate and fix date
@@ -209,14 +204,10 @@ Be accurate with amounts, item names, and dates. If you can't determine a catego
         // Convert array to object format with today's date
         const items = JSON.parse(jsonArrayMatch[0])
         
-        // Filter out discount/rabat items
+        // Filter out items with negative amounts
         const filteredItems = items.filter(item => {
-          const itemName = (item.item || '').toLowerCase()
-          const isDiscount = itemName.includes('discount') || itemName.includes('rabat') || 
-                            itemName.includes('reduction') || itemName.includes('rebate') ||
-                            itemName.includes('refund') || itemName.includes('return')
           const hasNegativeAmount = parseFloat(item.amount || 0) <= 0
-          return !isDiscount && !hasNegativeAmount
+          return !hasNegativeAmount
         })
         
         return {
