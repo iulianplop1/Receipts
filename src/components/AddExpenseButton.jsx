@@ -13,7 +13,8 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
   const [recording, setRecording] = useState(false)
   const [audioBlob, setAudioBlob] = useState(null)
   const [recordingTime, setRecordingTime] = useState(0)
-  const [receiptFile, setReceiptFile] = useState(null) // Store the receipt file for upload
+  const [receiptFiles, setReceiptFiles] = useState([]) // [{ id, file, name, index }]
+  const [bulkDate, setBulkDate] = useState('')
   
   const fileInputRef = useRef(null)
   const recorderRef = useRef(null)
@@ -24,58 +25,50 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
   const audioBlobRef = useRef(null) // Store blob in ref to prevent loss
 
   const handlePhotoUpload = async (e) => {
-    const files = Array.from(e.target.files || [])
-    if (files.length === 0) return
+    const filesArray = Array.from(e.target.files || [])
+    if (filesArray.length === 0) return
+
+    const filesWithMeta = createReceiptFileEntries(filesArray)
 
     setLoading(true)
     setError('')
 
     try {
-      // Process all selected images
-      const allItems = []
-      let receiptDate = null
-      
-      for (const file of files) {
+      const collectedItems = []
+
+      for (const fileEntry of filesWithMeta) {
+        const { file } = fileEntry
         try {
           const result = await analyzeReceipt(file)
-          // Handle both old format (array) and new format (object with date and items)
-          const items = result.items || result
-          const date = result.date || new Date().toISOString().split('T')[0]
-          
-          // Use the first valid date we find
-          if (result.date && !receiptDate) {
-            receiptDate = date
-          } else if (!receiptDate) {
-            receiptDate = date
+          const rawItems = Array.isArray(result?.items)
+            ? result.items
+            : Array.isArray(result)
+              ? result
+              : []
+
+          const receiptDate = normalizeDateValue(result?.date || '')
+          const normalizedItems = transformReceiptItems(rawItems, receiptDate, fileEntry)
+
+          if (normalizedItems.length === 0) {
+            console.warn(`No valid items found in ${file.name}`)
           }
-          
-          // Filter out items with negative amounts (additional client-side filtering)
-          const filteredItems = items.filter(item => {
-            const hasNegativeAmount = parseFloat(item.amount || 0) <= 0
-            return !hasNegativeAmount
-          })
-          
-          allItems.push(...filteredItems.map(item => ({ 
-            ...item, 
-            currency: 'DKK',
-            date: date || receiptDate || new Date().toISOString().split('T')[0] // Use date from receipt
-          })))
+
+          collectedItems.push(...normalizedItems)
         } catch (fileError) {
           console.error(`Error processing file ${file.name}:`, fileError)
           // Continue with other files even if one fails
         }
       }
       
-      if (allItems.length === 0) {
+      if (collectedItems.length === 0) {
         setError('No valid items found in the receipts. Please make sure the images contain valid purchase items.')
         setLoading(false)
         return
       }
       
-      // Store the first file for upload (or we could store all files)
-      setReceiptFile(files[0])
-      
-      setReviewItems(allItems)
+      setReceiptFiles(filesWithMeta)
+      setReviewItems(collectedItems)
+      setBulkDate(collectedItems[0]?.date || getTodayDateString())
       setMode('review')
     } catch (err) {
       const errorMsg = err.message || 'Failed to analyze receipt. Please try again.'
@@ -86,6 +79,9 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
       }
       console.error(err)
     } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
       setLoading(false)
     }
   }
@@ -98,7 +94,16 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
 
     try {
       const result = await parseTextInput(text)
-      setReviewItems(result.items.map(item => ({ ...item, currency: 'DKK' })))
+      const preparedItems = transformReceiptItems(result?.items || [], getTodayDateString())
+
+      if (preparedItems.length === 0) {
+        setError('No valid items were found in the provided text. Please include at least one item with a positive amount.')
+        return
+      }
+
+      setReceiptFiles([])
+      setReviewItems(preparedItems)
+      setBulkDate(preparedItems[0]?.date || getTodayDateString())
       setMode('review')
     } catch (err) {
       setError('Failed to parse text. Please try again.')
@@ -271,8 +276,16 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
             const result = await transcribeAndParseAudioWithGemini(blobToUse)
             console.log('Gemini transcription result:', result)
             
-            if (result && result.items && result.items.length > 0) {
-              setReviewItems(result.items.map(item => ({ ...item, currency: 'DKK' })))
+            if (result && Array.isArray(result.items) && result.items.length > 0) {
+              const preparedItems = transformReceiptItems(result.items, getTodayDateString())
+              
+              if (preparedItems.length === 0) {
+                throw new Error('No items extracted from audio')
+              }
+
+              setReceiptFiles([])
+              setReviewItems(preparedItems)
+              setBulkDate(preparedItems[0]?.date || getTodayDateString())
               setMode('review')
               setAudioBlob(null)
               audioBlobRef.current = null
@@ -294,7 +307,15 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
               console.log('Trying Web Speech API transcription as fallback...')
               try {
                 const result = await parseTranscribedAudio(transcription)
-                setReviewItems(result.items.map(item => ({ ...item, currency: 'DKK' })))
+                const preparedItems = transformReceiptItems(result?.items || [], getTodayDateString())
+                
+                if (preparedItems.length === 0) {
+                  throw new Error('No items extracted from audio transcription')
+                }
+
+                setReceiptFiles([])
+                setReviewItems(preparedItems)
+                setBulkDate(preparedItems[0]?.date || getTodayDateString())
                 setMode('review')
                 setAudioBlob(null)
                 audioBlobRef.current = null
@@ -320,7 +341,15 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
             try {
               const { parseTranscribedAudio } = await import('../lib/gemini')
               const result = await parseTranscribedAudio(transcription)
-              setReviewItems(result.items.map(item => ({ ...item, currency: 'USD' })))
+              const preparedItems = transformReceiptItems(result?.items || [], getTodayDateString())
+
+              if (preparedItems.length === 0) {
+                throw new Error('No items extracted from audio transcription')
+              }
+
+              setReceiptFiles([])
+              setReviewItems(preparedItems)
+              setBulkDate(preparedItems[0]?.date || getTodayDateString())
               setMode('review')
               setAudioBlob(null)
               audioBlobRef.current = null
@@ -340,7 +369,15 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
         try {
           const { parseTranscribedAudio } = await import('../lib/gemini')
           const result = await parseTranscribedAudio(transcription)
-          setReviewItems(result.items.map(item => ({ ...item, currency: 'USD' })))
+          const preparedItems = transformReceiptItems(result?.items || [], getTodayDateString())
+
+          if (preparedItems.length === 0) {
+            throw new Error('No items extracted from audio transcription')
+          }
+
+          setReceiptFiles([])
+          setReviewItems(preparedItems)
+          setBulkDate(preparedItems[0]?.date || getTodayDateString())
           setMode('review')
           setAudioBlob(null)
           audioBlobRef.current = null
@@ -365,8 +402,40 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
 
   const handleReviewEdit = (index, field, value) => {
     const updated = [...reviewItems]
-    updated[index] = { ...updated[index], [field]: value }
+    let nextValue = value
+
+    if (field === 'date') {
+      nextValue = value ? normalizeDateValue(value) : ''
+    }
+
+    updated[index] = { ...updated[index], [field]: nextValue }
     setReviewItems(updated)
+  }
+
+  const applyBulkDateToItems = (value) => {
+    const normalized = normalizeDateValue(value || bulkDate || getTodayDateString())
+    setReviewItems(prev => prev.map(item => ({ ...item, date: normalized })))
+    return normalized
+  }
+
+  const handleBulkDateChange = (value) => {
+    if (!value) {
+      setBulkDate('')
+      return
+    }
+
+    const normalized = applyBulkDateToItems(value)
+    setBulkDate(normalized)
+  }
+
+  const handleBulkDateApply = () => {
+    if (!bulkDate) {
+      const normalized = applyBulkDateToItems(getTodayDateString())
+      setBulkDate(normalized)
+      return
+    }
+
+    applyBulkDateToItems(bulkDate)
   }
 
   const handleConfirm = async () => {
@@ -374,40 +443,47 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
     setError('')
 
     try {
-      // Upload receipt image if available (only for first item to avoid duplicates)
-      let receiptImageUrl = null
-      if (receiptFile && reviewItems.length > 0) {
-        try {
-          // Upload the receipt image
-          receiptImageUrl = await uploadReceiptImage(receiptFile, userId)
-        } catch (uploadError) {
-          console.warn('Receipt image upload failed (transaction will still be saved):', uploadError.message)
-          // Continue without image - don't block transaction creation
-          // The transaction will be saved successfully, just without the receipt image
-        }
-      }
+      const uploadedReceiptUrls = new Map()
 
       for (const item of reviewItems) {
-        // Use date from item if available, otherwise use today
-        let itemDate
-        if (item.date) {
-          // Handle date string (YYYY-MM-DD) - create date at local midnight to avoid timezone shift
-          const dateStr = typeof item.date === 'string' ? item.date : item.date
-          const [year, month, day] = dateStr.split('-').map(Number)
-          const localDate = new Date(year, month - 1, day)
-          itemDate = localDate.toISOString()
-        } else {
-          itemDate = new Date().toISOString()
+        const normalizedDate = normalizeDateValue(item.date || bulkDate || getTodayDateString())
+
+        const [year, month, day] = normalizedDate.split('-').map(Number)
+        const localDate = new Date(year, month - 1, day)
+        const itemDate = localDate.toISOString()
+
+        const parsedAmount = parseFloat(item.amount)
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+          setError('Each item must have a positive amount before saving.')
+          return
         }
-        
+
+        let receiptImageUrl = null
+        const receiptKey = getReceiptFileKey(item)
+        const receiptFile = getReceiptFileForItem(item, receiptFiles)
+
+        if (receiptKey && receiptFile) {
+          if (uploadedReceiptUrls.has(receiptKey)) {
+            receiptImageUrl = uploadedReceiptUrls.get(receiptKey)
+          } else {
+            try {
+              const uploadedUrl = await uploadReceiptImage(receiptFile, userId)
+              uploadedReceiptUrls.set(receiptKey, uploadedUrl)
+              receiptImageUrl = uploadedUrl
+            } catch (uploadError) {
+              console.warn('Receipt image upload failed (transaction will still be saved):', uploadError.message)
+            }
+          }
+        }
+
         await addTransaction({
           user_id: userId,
           item: item.item,
-          amount: parseFloat(item.amount),
-          category: item.category,
+          amount: parsedAmount,
+          category: item.category || 'Other',
           currency: item.currency || 'DKK',
           date: itemDate,
-          receipt_image_url: receiptImageUrl, // Add receipt image URL
+          receipt_image_url: receiptImageUrl,
         })
       }
       handleClose()
@@ -452,7 +528,8 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
     audioBlobRef.current = null
     setRecordingTime(0)
     transcriptionRef.current = ''
-    setReceiptFile(null) // Clear receipt file
+    setReceiptFiles([])
+    setBulkDate('')
     onClose()
   }
   
@@ -584,10 +661,39 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
           <div className="add-expense-review">
             <h2>Review & Confirm</h2>
             <p className="modal-subtitle">We found {reviewItems.length} item(s). Please review and confirm.</p>
+
+            <div className="bulk-date-controls">
+              <div className="bulk-date-meta">
+                <label htmlFor="bulk-date-input">Receipt date for all items</label>
+                <small>Update once and sync every line item</small>
+              </div>
+              <div className="bulk-date-actions">
+                <input
+                  id="bulk-date-input"
+                  type="date"
+                  value={bulkDate || ''}
+                  onChange={(e) => handleBulkDateChange(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="bulk-date-apply"
+                  onClick={handleBulkDateApply}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
             
             <div className="review-items">
               {reviewItems.map((item, index) => (
                 <div key={index} className="review-item">
+                  {item.receiptFileName && (
+                    <div className="review-item-header">
+                      <span className="receipt-chip" title={item.receiptFileName}>
+                        📎 {item.receiptFileName}
+                      </span>
+                    </div>
+                  )}
                   <div className="review-field">
                     <label>Item</label>
                     <input
@@ -647,7 +753,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
                     <label>Date</label>
                     <input
                       type="date"
-                      value={item.date ? new Date(item.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                      value={item.date || bulkDate || getTodayDateString()}
                       onChange={(e) => handleReviewEdit(index, 'date', e.target.value)}
                     />
                   </div>
@@ -716,5 +822,185 @@ function TextInputForm({ onSubmit, loading }) {
       </button>
     </form>
   )
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function normalizeDateValue(value) {
+  if (value instanceof Date && !isNaN(value)) {
+    return value.toISOString().split('T')[0]
+  }
+
+  if (typeof value === 'number') {
+    const dateFromNumber = new Date(value)
+    if (!isNaN(dateFromNumber)) {
+      return dateFromNumber.toISOString().split('T')[0]
+    }
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return getTodayDateString()
+    }
+
+    if (/^\d{4}-\d{1,2}-\d{1,2}/.test(trimmed)) {
+      const [yearRaw, monthRaw, dayPart] = trimmed.split('-')
+      const year = yearRaw.padStart(4, '0')
+      const month = monthRaw.padStart(2, '0')
+      const day = dayPart.split('T')[0].padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+
+    const parsed = new Date(trimmed)
+    if (!isNaN(parsed)) {
+      return parsed.toISOString().split('T')[0]
+    }
+  }
+
+  return getTodayDateString()
+}
+
+const CATEGORY_OPTIONS = [
+  'Groceries',
+  'Restaurants',
+  'Transportation',
+  'Shopping',
+  'Entertainment',
+  'Bills',
+  'Healthcare',
+  'Education',
+  'Personal Care',
+  'Subscriptions',
+  'Other',
+]
+
+function normalizeReceiptItem(rawItem = {}, fallbackDate, receiptSource) {
+  const amountValue = parseFloat(rawItem.amount)
+  const hasValidAmount = Number.isFinite(amountValue) && amountValue > 0
+  const {
+    receiptFileId,
+    receiptFileIndex,
+    receiptFileName,
+  } = extractReceiptMeta(receiptSource)
+
+  return {
+    item: sanitizeItemName(rawItem.item || rawItem.name || rawItem.description),
+    amount: hasValidAmount ? amountValue.toFixed(2) : '',
+    category: normalizeCategoryValue(rawItem.category),
+    currency: normalizeCurrencyValue(rawItem.currency),
+    date: normalizeDateValue(rawItem.date || fallbackDate || ''),
+    receiptFileId,
+    receiptFileIndex,
+    receiptFileName,
+  }
+}
+
+function transformReceiptItems(rawItems, fallbackDate, receiptSource = null) {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+    return []
+  }
+
+  return rawItems
+    .filter(item => {
+      const amountValue = parseFloat(item?.amount)
+      return Number.isFinite(amountValue) && amountValue > 0
+    })
+    .map(item => normalizeReceiptItem(item, fallbackDate, receiptSource))
+}
+
+function sanitizeItemName(value) {
+  if (!value) return 'Item'
+  const text = String(value).trim()
+  return text.length > 0 ? text : 'Item'
+}
+
+function normalizeCategoryValue(value) {
+  if (!value) return 'Other'
+  const candidate = String(value).trim()
+  if (!candidate) return 'Other'
+
+  const match = CATEGORY_OPTIONS.find(
+    category => category.toLowerCase() === candidate.toLowerCase()
+  )
+
+  return match || 'Other'
+}
+
+function normalizeCurrencyValue(value) {
+  if (!value) return 'DKK'
+  const candidate = String(value).trim().toUpperCase().slice(0, 3)
+  return candidate.length === 3 ? candidate : 'DKK'
+}
+
+function extractReceiptMeta(receiptSource) {
+  if (!receiptSource) {
+    return { receiptFileId: null, receiptFileIndex: null, receiptFileName: null }
+  }
+
+  if (typeof receiptSource === 'number') {
+    return { receiptFileId: null, receiptFileIndex: receiptSource, receiptFileName: null }
+  }
+
+  if (typeof receiptSource === 'string') {
+    return { receiptFileId: receiptSource, receiptFileIndex: null, receiptFileName: null }
+  }
+
+  if (typeof receiptSource === 'object') {
+    return {
+      receiptFileId: receiptSource.id || null,
+      receiptFileIndex: typeof receiptSource.index === 'number' ? receiptSource.index : null,
+      receiptFileName: receiptSource.name || receiptSource.file?.name || null,
+    }
+  }
+
+  return { receiptFileId: null, receiptFileIndex: null, receiptFileName: null }
+}
+
+function createReceiptFileEntries(files = []) {
+  const timestamp = Date.now()
+  const cryptoRef = typeof globalThis !== 'undefined' ? globalThis.crypto : null
+
+  return files.map((file, index) => ({
+    id: cryptoRef?.randomUUID ? cryptoRef.randomUUID() : `${timestamp}-${index}-${Math.random().toString(36).slice(2, 9)}`,
+    index,
+    name: file.name,
+    file,
+  }))
+}
+
+function getReceiptFileKey(item) {
+  if (item?.receiptFileId) {
+    return `id-${item.receiptFileId}`
+  }
+
+  if (typeof item?.receiptFileIndex === 'number') {
+    return `index-${item.receiptFileIndex}`
+  }
+
+  return null
+}
+
+function getReceiptFileForItem(item, receiptFiles = []) {
+  if (!item || !Array.isArray(receiptFiles) || receiptFiles.length === 0) {
+    return null
+  }
+
+  if (item.receiptFileId) {
+    const match = receiptFiles.find(entry => entry && entry.id === item.receiptFileId)
+    if (match) {
+      return match.file || match
+    }
+  }
+
+  if (typeof item.receiptFileIndex === 'number') {
+    const entry = receiptFiles[item.receiptFileIndex]
+    if (!entry) return null
+    return entry.file || entry
+  }
+
+  return null
 }
 
