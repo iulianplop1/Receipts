@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { analyzeReceipt, parseTextInput, parseTranscribedAudio } from '../lib/gemini'
 import { addTransaction } from '../lib/db'
 import { uploadReceiptImage } from '../lib/storage'
@@ -23,6 +23,8 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
   const recognitionRef = useRef(null)
   const transcriptionRef = useRef('')
   const audioBlobRef = useRef(null) // Store blob in ref to prevent loss
+
+  const receiptSummaries = useMemo(() => summarizeReviewItemsByReceipt(reviewItems), [reviewItems])
 
   const handlePhotoUpload = async (e) => {
     const filesArray = Array.from(e.target.files || [])
@@ -683,6 +685,37 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
                 </button>
               </div>
             </div>
+
+            {receiptSummaries.length > 0 && (
+              <div className="receipt-summary-grid">
+                {receiptSummaries.map((receipt) => (
+                  <div key={receipt.key} className="receipt-summary-card">
+                    <div className="receipt-summary-header">
+                      <span className="receipt-chip">
+                        📄 {receipt.name}
+                      </span>
+                      <span className="receipt-hint">Grouped by matching line items</span>
+                    </div>
+                    <div className="receipt-summary-table">
+                      <div className="receipt-summary-row receipt-summary-head">
+                        <span>Item</span>
+                        <span>Qty</span>
+                        <span>Unit price</span>
+                        <span>Total</span>
+                      </div>
+                      {receipt.entries.map((entry) => (
+                        <div key={`${receipt.key}-${entry.name}-${entry.currency}`} className="receipt-summary-row">
+                          <span>{entry.name}</span>
+                          <span>x{entry.quantity}</span>
+                          <span>{formatAmountDisplay(entry.unitPrice, entry.currency)}</span>
+                          <span>{formatAmountDisplay(entry.total, entry.currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             
             <div className="review-items">
               {reviewItems.map((item, index) => (
@@ -1002,5 +1035,78 @@ function getReceiptFileForItem(item, receiptFiles = []) {
   }
 
   return null
+}
+
+function summarizeReviewItemsByReceipt(items = []) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return []
+  }
+
+  const receiptMap = new Map()
+
+  items.forEach((item, index) => {
+    const receiptKey = getReceiptGroupKey(item)
+    const amount = parseFloat(item?.amount)
+
+    if (!receiptKey || !Number.isFinite(amount) || amount <= 0) {
+      return
+    }
+
+    if (!receiptMap.has(receiptKey)) {
+      receiptMap.set(receiptKey, {
+        key: receiptKey,
+        name: item.receiptFileName || `Receipt ${receiptMap.size + 1}`,
+        order: index,
+        groups: new Map(),
+      })
+    }
+
+    const receiptEntry = receiptMap.get(receiptKey)
+    const itemName = sanitizeItemName(item.item)
+    const currency = normalizeCurrencyValue(item.currency)
+    const groupKey = `${itemName}-${currency}`
+
+    if (!receiptEntry.groups.has(groupKey)) {
+      receiptEntry.groups.set(groupKey, {
+        name: itemName,
+        currency,
+        quantity: 0,
+        total: 0,
+      })
+    }
+
+    const group = receiptEntry.groups.get(groupKey)
+    group.quantity += 1
+    group.total += amount
+  })
+
+  return Array.from(receiptMap.values())
+    .sort((a, b) => a.order - b.order)
+    .map((receipt) => ({
+      key: receipt.key,
+      name: receipt.name,
+      entries: Array.from(receipt.groups.values()).map((entry) => ({
+        ...entry,
+        unitPrice: entry.quantity > 0 ? Number((entry.total / entry.quantity).toFixed(2)) : entry.total,
+        total: Number(entry.total.toFixed(2)),
+      })),
+    }))
+}
+
+function getReceiptGroupKey(item) {
+  if (item?.receiptFileId) {
+    return `id-${item.receiptFileId}`
+  }
+  if (typeof item?.receiptFileIndex === 'number') {
+    return `index-${item.receiptFileIndex}`
+  }
+  return null
+}
+
+function formatAmountDisplay(amount, currency = 'DKK') {
+  if (!Number.isFinite(amount)) {
+    return '-'
+  }
+  return `${amount.toFixed(2)} ${currency}`
 }
 
