@@ -16,9 +16,9 @@
   background: var(--surface);
   border-radius: 20px;
   padding: 32px;
-  max-width: 600px;
+  max-width: 640px;
   width: 100%;
-  max-height: 90vh;
+  max-height: 92vh;
   overflow-y: auto;
   position: relative;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
@@ -229,7 +229,7 @@
   flex-direction: column;
   gap: 20px;
   margin-bottom: 24px;
-  max-height: 400px;
+  max-height: 420px;
   overflow-y: auto;
   padding-right: 8px;
 }
@@ -333,6 +333,7 @@
 .receipt-summary-table {
   display: grid;
   gap: 6px;
+  width: 100%;
 }
 
 .receipt-summary-row {
@@ -488,7 +489,7 @@
 @media (max-width: 768px) {
   .modal-content {
     padding: 24px;
-    max-height: 95vh;
+    max-height: 96vh;
   }
 
   .mode-buttons {
@@ -504,7 +505,48 @@
   }
 
   .receipt-summary-row {
-    grid-template-columns: 1.5fr 0.7fr 1fr 1fr;
+    grid-template-columns: 1.6fr 0.8fr 1.1fr 1.1fr;
+  }
+
+  .review-items {
+    max-height: 360px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .bulk-date-controls {
+    align-items: flex-start;
+  }
+
+  .receipt-summary-card {
+    padding: 14px;
+  }
+
+  .receipt-summary-row {
+    grid-template-columns: 1.5fr 0.8fr 1fr 1fr;
+    font-size: 12px;
+    padding: 6px;
+  }
+
+  .review-item {
+    padding: 16px;
+    gap: 10px;
+  }
+
+  .review-items {
+    max-height: 320px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
   }
 }
 
