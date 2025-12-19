@@ -126,56 +126,131 @@ function resolveAmbiguousDate(dateStr) {
 
 export async function analyzeReceipt(imageFile) {
   const imageData = await fileToBase64(imageFile)
-  const prompt = `Analyze this receipt image and extract ALL transactions. Pay close attention to quantities and calculate totals correctly.
+  const prompt = `Analyze this receipt image and extract ALL transactions. Pay close attention to quantities, discounts, and calculate prices correctly.
 
-IMPORTANT RULES:
-1. If an item appears multiple times (e.g., "2x Apple" or "Apple x2"), create separate entries for EACH item with the individual price
-2. If quantity is shown (e.g., "2 @ $1.50"), calculate: amount = quantity × unit_price
-3. List EVERY item on the receipt, even if they're the same item
-4. If you see "2 PS" or similar, that means 2 of that item - create 2 separate entries
-5. CRITICAL: If an item has a discount, rabat, or reduction applied to it, calculate the FINAL price after discount. For example, if an item costs 20 DKK and has -8 DKK rabat, the final amount should be 12 DKK (20 - 8 = 12). Always use the final price after any discounts.
-6. Only include items with positive final amounts (actual purchases) - do not include items with negative or zero amounts after discounts are applied
+CRITICAL RULES FOR QUANTITIES:
+1. If you see "2 stk", "2 PS", "2x", "x2", "2 @", or any quantity indicator, you MUST:
+   - Split it into separate entries (one per item)
+   - Use the UNIT PRICE (price per item), NOT the total price
+   - Remove quantity from the item name (e.g., "Apple 2 stk" becomes just "Apple")
+   - Example: "Apple 2 stk @ 10.00 DKK" = 2 separate entries, each with amount 10.00 DKK
+
+2. If quantity is shown with a total (e.g., "2 @ $1.50 = $3.00"):
+   - Calculate unit price: total ÷ quantity = unit price
+   - Create separate entries with the unit price
+   - Example: "Apple 2 @ 1.50 = 3.00" → 2 entries of {"item": "Apple", "amount": 1.50}
+
+3. NEVER include quantity in the item name. "Apple 2 stk" should be extracted as item name "Apple", not "Apple 2 stk"
+
+CRITICAL RULES FOR DISCOUNTS/RABAT:
+4. ALWAYS look for discount indicators below, above, or next to item prices:
+   - Words like "rabat", "discount", "reduction", "tilbud", "sale"
+   - Negative amounts (e.g., "-8.00 DKK", "-8 DKK rabat")
+   - Percentage discounts (e.g., "10% rabat")
+   
+5. When you see a discount:
+   - Find the original price AND the discount amount
+   - Calculate: final_price = original_price - discount_amount
+   - Use the FINAL price (after discount) in the amount field
+   - Example: Item shows "20.00 DKK" and below it "-8.00 DKK rabat" → amount should be 12.00 DKK (20 - 8)
+
+6. If an item has multiple discounts, subtract ALL of them from the original price
+
+7. Only include items with positive final amounts after all discounts are applied
+
+GENERAL RULES:
+8. List EVERY item on the receipt, even if they're the same item
+9. Extract the purchase date from the receipt (look for date, transaction date, purchase date, etc.)
+10. The date must be a valid date from the receipt, not a random date
+11. If no date is found or the date seems invalid, use today's date in YYYY-MM-DD format
 
 Return a JSON object with this exact structure:
 {
   "date": "YYYY-MM-DD",
   "items": [
     {
-      "item": "item name",
+      "item": "item name (NO quantity, NO discount info)",
       "amount": 0.00,
       "category": "category name"
     }
   ]
 }
 
-IMPORTANT:
-- Extract the purchase date from the receipt (look for date, transaction date, purchase date, etc.)
-- The date must be a valid date from the receipt, not a random date
-- If no date is found or the date seems invalid, use today's date in YYYY-MM-DD format
-- The date should be the actual purchase date from the receipt, not today
-- Do not extract dates that are clearly wrong (e.g., dates from many years in the past or future)
+Categories: Groceries, Restaurants, Transportation, Shopping, Entertainment, Bills, Healthcare, Education, Personal Care, Subscriptions, Other.
 
-Categories should be: Groceries, Restaurants, Transportation, Shopping, Entertainment, Bills, Healthcare, Education, Personal Care, Subscriptions, Other.
+EXAMPLES:
 
-Example 1: If receipt shows "Date: 2024-01-15" and "Apple 2 @ $1.50", return:
+Example 1 - Quantity splitting:
+Receipt shows: "Apple 2 stk @ 10.00 DKK"
+Return:
 {
   "date": "2024-01-15",
   "items": [
-    {"item": "Apple", "amount": 1.50, "category": "Groceries"},
-    {"item": "Apple", "amount": 1.50, "category": "Groceries"}
+    {"item": "Apple", "amount": 10.00, "category": "Groceries"},
+    {"item": "Apple", "amount": 10.00, "category": "Groceries"}
   ]
 }
 
-Example 2: If receipt shows "Item: 20 DKK" and below it "-8 DKK rabat", return:
+Example 2 - Discount calculation:
+Receipt shows:
+"Bread    20.00 DKK
+ rabat    -8.00 DKK"
+Return:
 {
   "date": "2024-01-15",
   "items": [
-    {"item": "Item", "amount": 12.00, "category": "Other"}
+    {"item": "Bread", "amount": 12.00, "category": "Groceries"}
   ]
 }
-Note: The amount is 12 (20 - 8), not 20, because the discount must be subtracted.
+Note: 20.00 - 8.00 = 12.00 DKK
 
-Be accurate with amounts, item names, and dates. Always calculate the final price after discounts. If you can't determine a category, use "Other".`
+Example 3 - Quantity with discount (discount applies to total):
+Receipt shows:
+"Milk 2 stk @ 15.00 DKK
+ rabat -5.00 DKK"
+If the discount is on the total (30.00 - 5.00 = 25.00), then:
+Return:
+{
+  "date": "2024-01-15",
+  "items": [
+    {"item": "Milk", "amount": 12.50, "category": "Groceries"},
+    {"item": "Milk", "amount": 12.50, "category": "Groceries"}
+  ]
+}
+Note: Total after discount = (2 × 15.00) - 5.00 = 25.00, so unit price = 25.00 ÷ 2 = 12.50 per item
+
+Example 3b - Quantity with discount (discount per item):
+Receipt shows:
+"Milk 2 stk @ 15.00 DKK
+ rabat -5.00 DKK per stk"
+Return:
+{
+  "date": "2024-01-15",
+  "items": [
+    {"item": "Milk", "amount": 10.00, "category": "Groceries"},
+    {"item": "Milk", "amount": 10.00, "category": "Groceries"}
+  ]
+}
+Note: Unit price after discount = 15.00 - 5.00 = 10.00 per item
+
+Example 4 - Total price with quantity:
+Receipt shows: "Orange 3 stk = 30.00 DKK"
+Return:
+{
+  "date": "2024-01-15",
+  "items": [
+    {"item": "Orange", "amount": 10.00, "category": "Groceries"},
+    {"item": "Orange", "amount": 10.00, "category": "Groceries"},
+    {"item": "Orange", "amount": 10.00, "category": "Groceries"}
+  ]
+}
+Note: 30.00 ÷ 3 = 10.00 per item
+
+Be extremely careful with:
+- Extracting unit prices (not total prices) when quantities are shown
+- Calculating final prices after discounts
+- Removing quantity indicators from item names
+- Looking for discount information near prices`
 
   // First, try to get available models
   let availableModels = []

@@ -946,7 +946,18 @@ function transformReceiptItems(rawItems, fallbackDate, receiptSource = null) {
 
 function sanitizeItemName(value) {
   if (!value) return 'Item'
-  const text = String(value).trim()
+  let text = String(value).trim()
+  
+  // Remove quantity indicators from item names (safety net in case AI includes them)
+  // Patterns like "2 stk", "2 PS", "2x", "x2", "2 @", etc.
+  text = text.replace(/\s*\d+\s*(stk|PS|ps|pcs|pieces?|x|@)\s*/gi, '')
+  text = text.replace(/\s*\d+x\s*/gi, '')
+  text = text.replace(/\s*x\d+\s*/gi, '')
+  text = text.replace(/\s*\d+\s*@\s*/gi, '')
+  
+  // Remove trailing/leading whitespace after cleanup
+  text = text.trim()
+  
   return text.length > 0 ? text : 'Item'
 }
 
