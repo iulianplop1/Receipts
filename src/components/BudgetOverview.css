@@ -82,7 +82,8 @@
   gap: 12px;
 }
 
-.month-select {
+.month-select,
+.period-select {
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -92,12 +93,14 @@
   cursor: pointer;
 }
 
-.month-select:focus {
+.month-select:focus,
+.period-select:focus {
   border-color: var(--primary);
   outline: none;
 }
 
-.month-statistics {
+.month-statistics,
+.period-statistics {
   display: flex;
   gap: 24px;
   margin: 20px 0;
@@ -123,6 +126,36 @@
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.income-stat {
+  border-left: 3px solid #10B981;
+  padding-left: 12px;
+}
+
+.income-value {
+  color: #10B981;
+}
+
+.net-stat {
+  border-left: 3px solid;
+  padding-left: 12px;
+}
+
+.net-stat.positive {
+  border-color: #10B981;
+}
+
+.net-stat.positive .stat-value {
+  color: #10B981;
+}
+
+.net-stat.negative {
+  border-color: var(--error);
+}
+
+.net-stat.negative .stat-value {
+  color: var(--error);
 }
 
 .budget-category {

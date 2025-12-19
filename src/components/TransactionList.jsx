@@ -22,22 +22,48 @@ const CATEGORY_COLORS = {
 export default function TransactionList({ transactions, currency, onUpdate, subscriptions = [] }) {
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('date')
-  const [monthFilter, setMonthFilter] = useState('all')
+  const [periodFilter, setPeriodFilter] = useState('all')
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [viewingImage, setViewingImage] = useState(null)
 
   const categories = [...new Set(transactions.map(t => t.category))]
 
-  // Get available months from transactions
-  const availableMonths = useMemo(() => {
+  // Get available periods from transactions
+  const availablePeriods = useMemo(() => {
+    const periods = []
     const months = new Set()
+    const years = new Set()
+    
     transactions.forEach(t => {
       const date = new Date(t.date)
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const yearKey = `${date.getFullYear()}`
       months.add(monthKey)
+      years.add(yearKey)
     })
-    return Array.from(months).sort().reverse()
+    
+    // Add current month
+    const now = new Date()
+    months.add(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+    years.add(`${now.getFullYear()}`)
+    
+    // Add "All Time" option
+    periods.push({ value: 'all', label: 'All Time' })
+    
+    // Add years
+    Array.from(years).sort().reverse().forEach(year => {
+      periods.push({ value: `year:${year}`, label: `Year ${year}` })
+    })
+    
+    // Add months
+    Array.from(months).sort().reverse().forEach(month => {
+      const [year, monthNum] = month.split('-').map(Number)
+      const monthDate = new Date(year, monthNum - 1, 1)
+      periods.push({ value: `month:${month}`, label: format(monthDate, 'MMMM yyyy') })
+    })
+    
+    return periods
   }, [transactions])
 
   const filteredTransactions = useMemo(() => {
@@ -45,13 +71,21 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
       // Category filter
       if (filter !== 'all' && t.category !== filter) return false
       
-      // Month filter
-      if (monthFilter !== 'all') {
-        const [year, month] = monthFilter.split('-').map(Number)
-        const tDate = new Date(t.date)
-        const tYear = tDate.getFullYear()
-        const tMonth = tDate.getMonth() + 1
-        if (tYear !== year || tMonth !== month) return false
+      // Period filter
+      if (periodFilter !== 'all') {
+        const [periodType, periodValue] = periodFilter.split(':')
+        
+        if (periodType === 'year') {
+          const year = parseInt(periodValue)
+          const tDate = new Date(t.date)
+          if (tDate.getFullYear() !== year) return false
+        } else if (periodType === 'month') {
+          const [year, month] = periodValue.split('-').map(Number)
+          const tDate = new Date(t.date)
+          const tYear = tDate.getFullYear()
+          const tMonth = tDate.getMonth() + 1
+          if (tYear !== year || tMonth !== month) return false
+        }
       }
       
       return true
@@ -74,7 +108,7 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
       }
       return 0
     })
-  }, [transactions, filter, monthFilter, sortBy])
+  }, [transactions, filter, periodFilter, sortBy])
 
   const sortedTransactions = filteredTransactions
 
@@ -162,20 +196,15 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
         <h2>Transactions</h2>
         <div className="card-controls">
           <select
-            value={monthFilter}
-            onChange={(e) => setMonthFilter(e.target.value)}
+            value={periodFilter}
+            onChange={(e) => setPeriodFilter(e.target.value)}
             className="filter-select"
           >
-            <option value="all">All Months</option>
-            {availableMonths.map(month => {
-              const [year, monthNum] = month.split('-').map(Number)
-              const monthDate = new Date(year, monthNum - 1, 1)
-              return (
-                <option key={month} value={month}>
-                  {format(monthDate, 'MMMM yyyy')}
-                </option>
-              )
-            })}
+            {availablePeriods.map(period => (
+              <option key={period.value} value={period.value}>
+                {period.label}
+              </option>
+            ))}
           </select>
           <select
             value={filter}

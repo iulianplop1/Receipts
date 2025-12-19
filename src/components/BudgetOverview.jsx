@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { formatCurrency, convertCurrency } from '../lib/currency'
 import { upsertBudget } from '../lib/db'
 import { calculateMonthlySubscriptionCost } from '../lib/subscriptionUtils'
+import { calculateMonthlyIncome } from '../lib/incomeUtils'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { format } from 'date-fns'
 import './BudgetOverview.css'
@@ -20,42 +21,81 @@ const CATEGORY_COLORS = {
   Other: '#6B7280',
 }
 
-export default function BudgetOverview({ transactions, budgets, currency, onBudgetUpdate, userId, subscriptions = [] }) {
+export default function BudgetOverview({ transactions, budgets, currency, onBudgetUpdate, userId, subscriptions = [], incomeList = [] }) {
   const [showAddBudget, setShowAddBudget] = useState(false)
   const [newCategory, setNewCategory] = useState('')
   const [newAmount, setNewAmount] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState(() => {
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
     // Default to current month in YYYY-MM format
     const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    return `month:${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
 
-  // Get available months from transactions
-  const availableMonths = useMemo(() => {
+  // Get available periods from transactions
+  const availablePeriods = useMemo(() => {
+    const periods = []
     const months = new Set()
+    const years = new Set()
+    
     transactions.forEach(t => {
       const date = new Date(t.date)
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const yearKey = `${date.getFullYear()}`
       months.add(monthKey)
+      years.add(yearKey)
     })
-    // Also add current month
+    
+    // Add current month
     const now = new Date()
     months.add(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
-    return Array.from(months).sort().reverse()
+    years.add(`${now.getFullYear()}`)
+    
+    // Add "All Time" option
+    periods.push({ value: 'all', label: 'All Time' })
+    
+    // Add years
+    Array.from(years).sort().reverse().forEach(year => {
+      periods.push({ value: `year:${year}`, label: `Year ${year}` })
+    })
+    
+    // Add months
+    Array.from(months).sort().reverse().forEach(month => {
+      const [year, monthNum] = month.split('-').map(Number)
+      const monthDate = new Date(year, monthNum - 1, 1)
+      periods.push({ value: `month:${month}`, label: format(monthDate, 'MMMM yyyy') })
+    })
+    
+    return periods
   }, [transactions])
 
-  // Filter transactions by selected month
+  // Filter transactions by selected period
   const filteredTransactions = useMemo(() => {
-    if (!selectedMonth) return transactions
-    const [year, month] = selectedMonth.split('-').map(Number)
-    const startOfMonth = new Date(year, month - 1, 1)
-    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999)
+    if (!selectedPeriod || selectedPeriod === 'all') return transactions
     
-    return transactions.filter(t => {
-      const tDate = new Date(t.date)
-      return tDate >= startOfMonth && tDate <= endOfMonth
-    })
-  }, [transactions, selectedMonth])
+    const [periodType, periodValue] = selectedPeriod.split(':')
+    
+    if (periodType === 'year') {
+      const year = parseInt(periodValue)
+      const startOfYear = new Date(year, 0, 1)
+      const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999)
+      
+      return transactions.filter(t => {
+        const tDate = new Date(t.date)
+        return tDate >= startOfYear && tDate <= endOfYear
+      })
+    } else if (periodType === 'month') {
+      const [year, month] = periodValue.split('-').map(Number)
+      const startOfMonth = new Date(year, month - 1, 1)
+      const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999)
+      
+      return transactions.filter(t => {
+        const tDate = new Date(t.date)
+        return tDate >= startOfMonth && tDate <= endOfMonth
+      })
+    }
+    
+    return transactions
+  }, [transactions, selectedPeriod])
 
   // Calculate spending by category from filtered transactions
   const spendingByCategory = useMemo(() => {
@@ -65,32 +105,137 @@ export default function BudgetOverview({ transactions, budgets, currency, onBudg
       return acc
     }, {})
 
-    // Add subscription costs to Subscriptions category for selected month
-    const [year, month] = selectedMonth.split('-').map(Number)
-    const monthDate = new Date(year, month - 1, 1)
-    const monthlySubscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency, monthDate)
-    if (monthlySubscriptionCost > 0) {
-      spending['Subscriptions'] = (spending['Subscriptions'] || 0) + monthlySubscriptionCost
+    // Add subscription costs to Subscriptions category for selected period
+    if (selectedPeriod && selectedPeriod !== 'all') {
+      const [periodType, periodValue] = selectedPeriod.split(':')
+      
+      if (periodType === 'month') {
+        const [year, month] = periodValue.split('-').map(Number)
+        const monthDate = new Date(year, month - 1, 1)
+        const monthlySubscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency, monthDate)
+        if (monthlySubscriptionCost > 0) {
+          spending['Subscriptions'] = (spending['Subscriptions'] || 0) + monthlySubscriptionCost
+        }
+      } else if (periodType === 'year') {
+        const year = parseInt(periodValue)
+        // Calculate subscription costs for all months in the year
+        let yearlySubscriptionCost = 0
+        for (let month = 0; month < 12; month++) {
+          const monthDate = new Date(year, month, 1)
+          yearlySubscriptionCost += calculateMonthlySubscriptionCost(subscriptions, currency, monthDate)
+        }
+        if (yearlySubscriptionCost > 0) {
+          spending['Subscriptions'] = (spending['Subscriptions'] || 0) + yearlySubscriptionCost
+        }
+      }
+    } else if (selectedPeriod === 'all') {
+      // For "all time", calculate subscription costs for all months from earliest transaction to now
+      if (transactions.length > 0) {
+        const earliestDate = new Date(Math.min(...transactions.map(t => new Date(t.date).getTime())))
+        const now = new Date()
+        let allTimeSubscriptionCost = 0
+        
+        const current = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1)
+        while (current <= now) {
+          allTimeSubscriptionCost += calculateMonthlySubscriptionCost(subscriptions, currency, current)
+          current.setMonth(current.getMonth() + 1)
+        }
+        
+        if (allTimeSubscriptionCost > 0) {
+          spending['Subscriptions'] = (spending['Subscriptions'] || 0) + allTimeSubscriptionCost
+        }
+      }
     }
     
     return spending
-  }, [filteredTransactions, subscriptions, currency, selectedMonth])
+  }, [filteredTransactions, subscriptions, currency, selectedPeriod, transactions])
 
-  // Calculate statistics for selected month
-  const monthStats = useMemo(() => {
+  // Calculate income for selected period
+  const periodIncome = useMemo(() => {
+    let income = 0
+    
+    if (selectedPeriod && selectedPeriod !== 'all') {
+      const [periodType, periodValue] = selectedPeriod.split(':')
+      
+      if (periodType === 'month') {
+        const [year, month] = periodValue.split('-').map(Number)
+        const monthDate = new Date(year, month - 1, 1)
+        income = calculateMonthlyIncome(incomeList, currency, monthDate)
+      } else if (periodType === 'year') {
+        const year = parseInt(periodValue)
+        for (let month = 0; month < 12; month++) {
+          const monthDate = new Date(year, month, 1)
+          income += calculateMonthlyIncome(incomeList, currency, monthDate)
+        }
+      }
+    } else if (selectedPeriod === 'all') {
+      if (transactions.length > 0 || incomeList.length > 0) {
+        const earliestDate = incomeList.length > 0 && transactions.length > 0
+          ? new Date(Math.min(
+              Math.min(...transactions.map(t => new Date(t.date).getTime())),
+              Math.min(...incomeList.map(i => i.start_date ? new Date(i.start_date).getTime() : new Date(i.created_at).getTime()))
+            ))
+          : transactions.length > 0
+          ? new Date(Math.min(...transactions.map(t => new Date(t.date).getTime())))
+          : incomeList.length > 0
+          ? new Date(Math.min(...incomeList.map(i => i.start_date ? new Date(i.start_date).getTime() : new Date(i.created_at).getTime())))
+          : new Date()
+        
+        const now = new Date()
+        const current = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1)
+        while (current <= now) {
+          income += calculateMonthlyIncome(incomeList, currency, current)
+          current.setMonth(current.getMonth() + 1)
+        }
+      }
+    }
+    
+    return income
+  }, [incomeList, currency, selectedPeriod, transactions])
+
+  // Calculate statistics for selected period
+  const periodStats = useMemo(() => {
     const totalSpent = Object.values(spendingByCategory).reduce((sum, val) => sum + val, 0)
-    const [year, month] = selectedMonth.split('-').map(Number)
-    const monthDate = new Date(year, month - 1, 1)
-    const subscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency, monthDate)
+    
+    let subscriptionCost = 0
+    if (selectedPeriod && selectedPeriod !== 'all') {
+      const [periodType, periodValue] = selectedPeriod.split(':')
+      
+      if (periodType === 'month') {
+        const [year, month] = periodValue.split('-').map(Number)
+        const monthDate = new Date(year, month - 1, 1)
+        subscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency, monthDate)
+      } else if (periodType === 'year') {
+        const year = parseInt(periodValue)
+        for (let month = 0; month < 12; month++) {
+          const monthDate = new Date(year, month, 1)
+          subscriptionCost += calculateMonthlySubscriptionCost(subscriptions, currency, monthDate)
+        }
+      }
+    } else if (selectedPeriod === 'all') {
+      if (transactions.length > 0) {
+        const earliestDate = new Date(Math.min(...transactions.map(t => new Date(t.date).getTime())))
+        const now = new Date()
+        const current = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1)
+        while (current <= now) {
+          subscriptionCost += calculateMonthlySubscriptionCost(subscriptions, currency, current)
+          current.setMonth(current.getMonth() + 1)
+        }
+      }
+    }
+    
     const transactionTotal = totalSpent - subscriptionCost
+    const netAmount = periodIncome - totalSpent
     
     return {
       totalSpent,
       transactionTotal,
       subscriptionCost,
-      transactionCount: filteredTransactions.length
+      transactionCount: filteredTransactions.length,
+      income: periodIncome,
+      netAmount
     }
-  }, [spendingByCategory, subscriptions, currency, selectedMonth, filteredTransactions])
+  }, [spendingByCategory, subscriptions, currency, selectedPeriod, filteredTransactions, transactions, periodIncome])
 
   // Combine with budgets
   const budgetData = Object.entries(spendingByCategory).map(([category, spent]) => {
@@ -134,19 +279,15 @@ export default function BudgetOverview({ transactions, budgets, currency, onBudg
         <h2>Budget Overview</h2>
         <div className="header-controls">
           <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="month-select"
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="period-select"
           >
-            {availableMonths.map(month => {
-              const [year, monthNum] = month.split('-').map(Number)
-              const monthDate = new Date(year, monthNum - 1, 1)
-              return (
-                <option key={month} value={month}>
-                  {format(monthDate, 'MMMM yyyy')}
-                </option>
-              )
-            })}
+            {availablePeriods.map(period => (
+              <option key={period.value} value={period.value}>
+                {period.label}
+              </option>
+            ))}
           </select>
           <button
             className="btn-link-small"
@@ -157,20 +298,32 @@ export default function BudgetOverview({ transactions, budgets, currency, onBudg
         </div>
       </div>
 
-      {/* Month Statistics */}
-      <div className="month-statistics">
+      {/* Period Statistics */}
+      <div className="period-statistics">
+        {periodStats.income > 0 && (
+          <div className="stat-item income-stat">
+            <span className="stat-label">Income:</span>
+            <span className="stat-value income-value">{formatCurrency(periodStats.income, currency)}</span>
+          </div>
+        )}
         <div className="stat-item">
           <span className="stat-label">Total Spent:</span>
-          <span className="stat-value">{formatCurrency(monthStats.totalSpent, currency)}</span>
+          <span className="stat-value">{formatCurrency(periodStats.totalSpent, currency)}</span>
         </div>
+        {periodStats.income > 0 && (
+          <div className={`stat-item net-stat ${periodStats.netAmount >= 0 ? 'positive' : 'negative'}`}>
+            <span className="stat-label">Net:</span>
+            <span className="stat-value">{formatCurrency(periodStats.netAmount, currency)}</span>
+          </div>
+        )}
         <div className="stat-item">
           <span className="stat-label">Transactions:</span>
-          <span className="stat-value">{monthStats.transactionCount}</span>
+          <span className="stat-value">{periodStats.transactionCount}</span>
         </div>
-        {monthStats.subscriptionCost > 0 && (
+        {periodStats.subscriptionCost > 0 && (
           <div className="stat-item">
             <span className="stat-label">Subscriptions:</span>
-            <span className="stat-value">{formatCurrency(monthStats.subscriptionCost, currency)}</span>
+            <span className="stat-value">{formatCurrency(periodStats.subscriptionCost, currency)}</span>
           </div>
         )}
       </div>

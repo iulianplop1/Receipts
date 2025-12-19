@@ -107,3 +107,47 @@ export async function updateSubscription(id, updates) {
   return data
 }
 
+// Income functions
+export async function getIncome(userId) {
+  const { data, error } = await supabase
+    .from('income')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('active', true)
+  
+  if (error) throw error
+  return data || []
+}
+
+export async function addIncome(income) {
+  const { data, error } = await supabase
+    .from('income')
+    .insert([income])
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+export async function updateIncome(id, updates) {
+  const { data, error } = await supabase
+    .from('income')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+export async function deleteIncome(id) {
+  const { error } = await supabase
+    .from('income')
+    .delete()
+    .eq('id', id)
+  
+  if (error) throw error
+}
+

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { getTransactions, getBudgets, getSubscriptions } from '../lib/db'
+import { getTransactions, getBudgets, getSubscriptions, getIncome } from '../lib/db'
 import { generateInsights } from '../lib/gemini'
 import { exportAllData } from '../lib/export'
 import TransactionList from './TransactionList'
@@ -9,12 +9,14 @@ import InsightsCard from './InsightsCard'
 import AddExpenseButton from './AddExpenseButton'
 import SearchBar from './SearchBar'
 import SubscriptionTracker from './SubscriptionTracker'
+import IncomeTracker from './IncomeTracker'
 import './Dashboard.css'
 
 export default function Dashboard({ user }) {
   const [transactions, setTransactions] = useState([])
   const [budgets, setBudgets] = useState([])
   const [subscriptions, setSubscriptions] = useState([])
+  const [incomeList, setIncomeList] = useState([])
   const [insights, setInsights] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedCurrency, setSelectedCurrency] = useState('DKK')
@@ -39,15 +41,17 @@ export default function Dashboard({ user }) {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [txns, bdgs, subs] = await Promise.all([
+      const [txns, bdgs, subs, income] = await Promise.all([
         getTransactions(user.id),
         getBudgets(user.id),
         getSubscriptions(user.id),
+        getIncome(user.id),
       ])
       
       setTransactions(txns)
       setBudgets(bdgs)
       setSubscriptions(subs)
+      setIncomeList(income)
       
       // Set loading to false first to show the page quickly
       setLoading(false)
@@ -156,8 +160,16 @@ export default function Dashboard({ user }) {
             transactions={transactions}
             budgets={budgets}
             subscriptions={subscriptions}
+            incomeList={incomeList}
             currency={selectedCurrency}
             onBudgetUpdate={loadData}
+            userId={user.id}
+          />
+
+          <IncomeTracker
+            incomeList={incomeList}
+            currency={selectedCurrency}
+            onUpdate={loadData}
             userId={user.id}
           />
 
