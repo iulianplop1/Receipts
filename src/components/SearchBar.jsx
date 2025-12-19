@@ -2,18 +2,18 @@ import { useState } from 'react'
 import { naturalLanguageSearch } from '../lib/gemini'
 import './SearchBar.css'
 
-export default function SearchBar({ transactions }) {
+export default function SearchBar({ transactions, subscriptions = [], budgets = [], currency = 'USD' }) {
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [result, setResult] = useState(null)
 
   const handleSearch = async (e) => {
     e.preventDefault()
-    if (!query.trim() || transactions.length === 0) return
+    if (!query.trim()) return
 
     setSearching(true)
     try {
-      const searchResult = await naturalLanguageSearch(query, transactions)
+      const searchResult = await naturalLanguageSearch(query, transactions, subscriptions, budgets, currency)
       setResult(searchResult)
     } catch (error) {
       console.error('Search error:', error)

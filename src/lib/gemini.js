@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { convertCurrency } from './currency'
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyDRkO31dq3n5R5KUFVbLgEXQF9yXrx455c'
 
@@ -647,22 +648,92 @@ Provide 2-3 most relevant insights.`
   }
 }
 
-export async function naturalLanguageSearch(query, transactions) {
+export async function naturalLanguageSearch(query, transactions, subscriptions = [], budgets = [], currency = 'USD') {
   try {
     // Initialize model if not already done
     if (!model) {
       model = await getAvailableModel()
     }
     
-    const prompt = `Answer this question about the transactions: "${query}"
+    // Calculate summary statistics for better context
+    const totalTransactions = transactions.length
+    const totalSpent = transactions.reduce((sum, t) => {
+      const amount = convertCurrency(parseFloat(t.amount) || 0, t.currency || 'USD', currency)
+      return sum + amount
+    }, 0)
+    
+    // Group transactions by month with converted amounts
+    const transactionsByMonth = {}
+    transactions.forEach(t => {
+      const date = new Date(t.date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      if (!transactionsByMonth[monthKey]) {
+        transactionsByMonth[monthKey] = { transactions: [], total: 0 }
+      }
+      const convertedAmount = convertCurrency(parseFloat(t.amount) || 0, t.currency || 'USD', currency)
+      transactionsByMonth[monthKey].transactions.push(t)
+      transactionsByMonth[monthKey].total += convertedAmount
+    })
+    
+    // Calculate spending by category with currency conversion
+    const spendingByCategory = {}
+    transactions.forEach(t => {
+      const amount = convertCurrency(parseFloat(t.amount) || 0, t.currency || 'USD', currency)
+      spendingByCategory[t.category] = (spendingByCategory[t.category] || 0) + amount
+    })
+    
+    // Calculate subscription totals with currency conversion
+    const subscriptionTotal = subscriptions.reduce((sum, sub) => {
+      const amount = convertCurrency(parseFloat(sub.amount) || 0, sub.currency || 'USD', currency)
+      return sum + amount
+    }, 0)
+    
+    const prompt = `You are a financial assistant helping analyze personal budget and spending data. Answer the user's question accurately using ALL the provided data.
 
-Transactions: ${JSON.stringify(transactions.slice(0, 100))}
+User Question: "${query}"
+
+AVAILABLE DATA:
+
+1. TRANSACTIONS (Total: ${totalTransactions} transactions):
+${JSON.stringify(transactions.slice(0, 500))}${transactions.length > 500 ? `\n... and ${transactions.length - 500} more transactions` : ''}
+
+2. TRANSACTION SUMMARY BY MONTH:
+${JSON.stringify(Object.entries(transactionsByMonth).map(([month, data]) => ({
+  month,
+  count: data.transactions.length,
+  total: data.total
+})).slice(0, 12))}
+
+3. SPENDING BY CATEGORY:
+${JSON.stringify(spendingByCategory)}
+
+4. SUBSCRIPTIONS (Total: ${subscriptions.length} active subscriptions):
+${JSON.stringify(subscriptions)}
+
+5. BUDGETS:
+${JSON.stringify(budgets)}
+
+6. CURRENCY: ${currency}
+
+IMPORTANT INSTRUCTIONS:
+- When calculating totals, include BOTH transactions AND subscription costs
+- Subscriptions are recurring monthly expenses that should be included in monthly totals
+- If asked about "this month" or "current month", use the most recent month in the data
+- If asked about total spending, include all transactions plus monthly subscription costs
+- Be precise with numbers and calculations
+- If the question asks about a specific month, filter transactions by that month
+- For subscription costs, multiply monthly amount by number of months if asking about a period
 
 Return JSON with this structure:
 {
-  "answer": "direct answer to the question",
-  "filteredTransactions": [array of relevant transaction IDs or indices]
-}`
+  "answer": "direct, accurate answer to the question with specific numbers and details",
+  "filteredTransactions": [array of relevant transaction IDs or indices if applicable]
+}
+
+Example: If asked "How much did I spend in total this month?", calculate:
+- Sum of all transactions in the current month
+- Plus all active subscription monthly costs
+- Return the total`
 
     const result = await model.generateContent(prompt)
     const response = await result.response
@@ -673,10 +744,16 @@ Return JSON with this structure:
       return JSON.parse(jsonMatch[0])
     }
     
-    return { answer: 'Could not process query', filteredTransactions: [] }
+    // Fallback: try to extract answer from text even if not JSON
+    const answerMatch = text.match(/answer["\s:]+"([^"]+)"/i) || text.match(/answer["\s:]+([^\n}]+)/i)
+    if (answerMatch) {
+      return { answer: answerMatch[1].trim(), filteredTransactions: [] }
+    }
+    
+    return { answer: text.substring(0, 500), filteredTransactions: [] }
   } catch (error) {
     console.error('Error processing search:', error)
-    return { answer: 'Error processing query', filteredTransactions: [] }
+    return { answer: 'Error processing query. Please try rephrasing your question.', filteredTransactions: [] }
   }
 }
 

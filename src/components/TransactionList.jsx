@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { formatCurrency, convertCurrency } from '../lib/currency'
 import { calculateMonthlySubscriptionCost } from '../lib/subscriptionUtils'
 import { format } from 'date-fns'
@@ -22,26 +22,61 @@ const CATEGORY_COLORS = {
 export default function TransactionList({ transactions, currency, onUpdate, subscriptions = [] }) {
   const [filter, setFilter] = useState('all')
   const [sortBy, setSortBy] = useState('date')
+  const [monthFilter, setMonthFilter] = useState('all')
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [viewingImage, setViewingImage] = useState(null)
 
   const categories = [...new Set(transactions.map(t => t.category))]
 
-  const filteredTransactions = transactions.filter(t => {
-    if (filter === 'all') return true
-    return t.category === filter
-  })
+  // Get available months from transactions
+  const availableMonths = useMemo(() => {
+    const months = new Set()
+    transactions.forEach(t => {
+      const date = new Date(t.date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      months.add(monthKey)
+    })
+    return Array.from(months).sort().reverse()
+  }, [transactions])
 
-  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
-    if (sortBy === 'date') {
-      return new Date(b.date) - new Date(a.date)
-    }
-    if (sortBy === 'amount') {
-      return b.amount - a.amount
-    }
-    return 0
-  })
+  const filteredTransactions = useMemo(() => {
+    let filtered = transactions.filter(t => {
+      // Category filter
+      if (filter !== 'all' && t.category !== filter) return false
+      
+      // Month filter
+      if (monthFilter !== 'all') {
+        const [year, month] = monthFilter.split('-').map(Number)
+        const tDate = new Date(t.date)
+        const tYear = tDate.getFullYear()
+        const tMonth = tDate.getMonth() + 1
+        if (tYear !== year || tMonth !== month) return false
+      }
+      
+      return true
+    })
+
+    // Sort
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'date') {
+        return new Date(b.date) - new Date(a.date)
+      }
+      if (sortBy === 'amount') {
+        return b.amount - a.amount
+      }
+      if (sortBy === 'month') {
+        const aDate = new Date(a.date)
+        const bDate = new Date(b.date)
+        const aMonth = `${aDate.getFullYear()}-${String(aDate.getMonth() + 1).padStart(2, '0')}`
+        const bMonth = `${bDate.getFullYear()}-${String(bDate.getMonth() + 1).padStart(2, '0')}`
+        return bMonth.localeCompare(aMonth)
+      }
+      return 0
+    })
+  }, [transactions, filter, monthFilter, sortBy])
+
+  const sortedTransactions = filteredTransactions
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
@@ -127,6 +162,22 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
         <h2>Transactions</h2>
         <div className="card-controls">
           <select
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="all">All Months</option>
+            {availableMonths.map(month => {
+              const [year, monthNum] = month.split('-').map(Number)
+              const monthDate = new Date(year, monthNum - 1, 1)
+              return (
+                <option key={month} value={month}>
+                  {format(monthDate, 'MMMM yyyy')}
+                </option>
+              )
+            })}
+          </select>
+          <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="filter-select"
@@ -143,6 +194,7 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
           >
             <option value="date">Sort by Date</option>
             <option value="amount">Sort by Amount</option>
+            <option value="month">Sort by Month</option>
           </select>
         </div>
       </div>

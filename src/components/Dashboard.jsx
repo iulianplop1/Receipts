@@ -141,7 +141,12 @@ export default function Dashboard({ user }) {
 
       <div className="dashboard-content">
         <div className="dashboard-main">
-          <SearchBar transactions={transactions} />
+          <SearchBar 
+            transactions={transactions} 
+            subscriptions={subscriptions}
+            budgets={budgets}
+            currency={selectedCurrency}
+          />
           
           {insights.length > 0 && (
             <InsightsCard insights={insights} />

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { formatCurrency, convertCurrency } from '../lib/currency'
 import { upsertBudget } from '../lib/db'
 import { calculateMonthlySubscriptionCost } from '../lib/subscriptionUtils'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { format } from 'date-fns'
 import './BudgetOverview.css'
 
 const CATEGORY_COLORS = {
@@ -23,19 +24,73 @@ export default function BudgetOverview({ transactions, budgets, currency, onBudg
   const [showAddBudget, setShowAddBudget] = useState(false)
   const [newCategory, setNewCategory] = useState('')
   const [newAmount, setNewAmount] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    // Default to current month in YYYY-MM format
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
 
-  // Calculate spending by category from transactions
-  const spendingByCategory = transactions.reduce((acc, t) => {
-    const amount = convertCurrency(t.amount, t.currency || 'USD', currency)
-    acc[t.category] = (acc[t.category] || 0) + amount
-    return acc
-  }, {})
+  // Get available months from transactions
+  const availableMonths = useMemo(() => {
+    const months = new Set()
+    transactions.forEach(t => {
+      const date = new Date(t.date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      months.add(monthKey)
+    })
+    // Also add current month
+    const now = new Date()
+    months.add(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+    return Array.from(months).sort().reverse()
+  }, [transactions])
 
-  // Add subscription costs to Subscriptions category
-  const monthlySubscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency)
-  if (monthlySubscriptionCost > 0) {
-    spendingByCategory['Subscriptions'] = (spendingByCategory['Subscriptions'] || 0) + monthlySubscriptionCost
-  }
+  // Filter transactions by selected month
+  const filteredTransactions = useMemo(() => {
+    if (!selectedMonth) return transactions
+    const [year, month] = selectedMonth.split('-').map(Number)
+    const startOfMonth = new Date(year, month - 1, 1)
+    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999)
+    
+    return transactions.filter(t => {
+      const tDate = new Date(t.date)
+      return tDate >= startOfMonth && tDate <= endOfMonth
+    })
+  }, [transactions, selectedMonth])
+
+  // Calculate spending by category from filtered transactions
+  const spendingByCategory = useMemo(() => {
+    const spending = filteredTransactions.reduce((acc, t) => {
+      const amount = convertCurrency(t.amount, t.currency || 'USD', currency)
+      acc[t.category] = (acc[t.category] || 0) + amount
+      return acc
+    }, {})
+
+    // Add subscription costs to Subscriptions category for selected month
+    const [year, month] = selectedMonth.split('-').map(Number)
+    const monthDate = new Date(year, month - 1, 1)
+    const monthlySubscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency, monthDate)
+    if (monthlySubscriptionCost > 0) {
+      spending['Subscriptions'] = (spending['Subscriptions'] || 0) + monthlySubscriptionCost
+    }
+    
+    return spending
+  }, [filteredTransactions, subscriptions, currency, selectedMonth])
+
+  // Calculate statistics for selected month
+  const monthStats = useMemo(() => {
+    const totalSpent = Object.values(spendingByCategory).reduce((sum, val) => sum + val, 0)
+    const [year, month] = selectedMonth.split('-').map(Number)
+    const monthDate = new Date(year, month - 1, 1)
+    const subscriptionCost = calculateMonthlySubscriptionCost(subscriptions, currency, monthDate)
+    const transactionTotal = totalSpent - subscriptionCost
+    
+    return {
+      totalSpent,
+      transactionTotal,
+      subscriptionCost,
+      transactionCount: filteredTransactions.length
+    }
+  }, [spendingByCategory, subscriptions, currency, selectedMonth, filteredTransactions])
 
   // Combine with budgets
   const budgetData = Object.entries(spendingByCategory).map(([category, spent]) => {
@@ -77,12 +132,47 @@ export default function BudgetOverview({ transactions, budgets, currency, onBudg
     <div className="budget-overview-card">
       <div className="card-header">
         <h2>Budget Overview</h2>
-        <button
-          className="btn-link-small"
-          onClick={() => setShowAddBudget(!showAddBudget)}
-        >
-          {showAddBudget ? 'Cancel' : '+ Add Budget'}
-        </button>
+        <div className="header-controls">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="month-select"
+          >
+            {availableMonths.map(month => {
+              const [year, monthNum] = month.split('-').map(Number)
+              const monthDate = new Date(year, monthNum - 1, 1)
+              return (
+                <option key={month} value={month}>
+                  {format(monthDate, 'MMMM yyyy')}
+                </option>
+              )
+            })}
+          </select>
+          <button
+            className="btn-link-small"
+            onClick={() => setShowAddBudget(!showAddBudget)}
+          >
+            {showAddBudget ? 'Cancel' : '+ Add Budget'}
+          </button>
+        </div>
+      </div>
+
+      {/* Month Statistics */}
+      <div className="month-statistics">
+        <div className="stat-item">
+          <span className="stat-label">Total Spent:</span>
+          <span className="stat-value">{formatCurrency(monthStats.totalSpent, currency)}</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-label">Transactions:</span>
+          <span className="stat-value">{monthStats.transactionCount}</span>
+        </div>
+        {monthStats.subscriptionCost > 0 && (
+          <div className="stat-item">
+            <span className="stat-label">Subscriptions:</span>
+            <span className="stat-value">{formatCurrency(monthStats.subscriptionCost, currency)}</span>
+          </div>
+        )}
       </div>
 
       {showAddBudget && (
@@ -146,7 +236,7 @@ export default function BudgetOverview({ transactions, budgets, currency, onBudg
           </div>
 
           <div className="budget-chart">
-            <h3 className="chart-title">Weekly Spending</h3>
+            <h3 className="chart-title">Category Spending</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={budgetData.slice(0, 6)}>
                 <XAxis

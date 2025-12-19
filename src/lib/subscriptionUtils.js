@@ -56,27 +56,148 @@ export function calculateSubscriptionCost(subscription, startDate, endDate, targ
 
   if (periodStart >= periodEnd) return 0
 
-  // Calculate billing periods
-  const periods = getBillingPeriods(periodStart, periodEnd, subscription.frequency || 'month')
+  // For monthly subscriptions, charge once per month if the period covers any part of that month
+  const frequency = subscription.frequency || 'month'
   
-  // Calculate total cost
-  const totalCost = subscription.amount * Math.max(1, periods)
-  
-  // Convert to target currency
-  return convertCurrency(totalCost, subscription.currency || 'USD', targetCurrency)
+  if (frequency === 'month') {
+    // Check if the period covers at least one day of a month - if so, charge for that month
+    // For a monthly subscription, we charge the full monthly amount if the period overlaps with that month
+    // This ensures that if a subscription started Oct 1 and we're calculating for October, November, or December,
+    // each month gets charged once
+    
+    // Get the start and end months
+    const startMonth = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1)
+    const endMonth = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), 1)
+    
+    // If start and end are in the same month, charge once
+    if (startMonth.getTime() === endMonth.getTime()) {
+      return convertCurrency(subscription.amount, subscription.currency || 'USD', targetCurrency)
+    }
+    
+    // Calculate months difference - this gives us how many months to charge
+    const monthsDiff = (endMonth.getFullYear() - startMonth.getFullYear()) * 12 + 
+                       (endMonth.getMonth() - startMonth.getMonth())
+    
+    // Charge for each month covered (at least 1)
+    const periods = Math.max(1, monthsDiff + 1)
+    const totalCost = subscription.amount * periods
+    return convertCurrency(totalCost, subscription.currency || 'USD', targetCurrency)
+  } else {
+    // For other frequencies (week, year), use the existing calculation
+    const periods = getBillingPeriods(periodStart, periodEnd, frequency)
+    const totalCost = subscription.amount * Math.max(1, periods)
+    return convertCurrency(totalCost, subscription.currency || 'USD', targetCurrency)
+  }
 }
 
 /**
- * Calculate total subscription costs for current month
+ * Calculate total subscription costs for a specific month
+ * @param {Array} subscriptions - Array of subscription objects
+ * @param {string} currency - Target currency
+ * @param {Date} monthDate - Date object representing the month (defaults to current month)
+ * @returns {number} Total subscription cost for the month
  */
-export function calculateMonthlySubscriptionCost(subscriptions, currency) {
-  const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+export function calculateMonthlySubscriptionCost(subscriptions, currency, monthDate = null) {
+  const targetDate = monthDate || new Date()
+  const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1)
+  const endOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0)
+  // Set end of month to end of day
+  endOfMonth.setHours(23, 59, 59, 999)
 
   return subscriptions.reduce((total, sub) => {
-    return total + calculateSubscriptionCost(sub, startOfMonth, endOfMonth, currency)
+    // Check if subscription was active during this month
+    let subStart
+    if (sub.start_date) {
+      const [year, month, day] = sub.start_date.split('-').map(Number)
+      subStart = new Date(year, month - 1, day)
+    } else {
+      subStart = new Date(sub.created_at)
+    }
+    
+    // If subscription hasn't started yet this month, skip it
+    if (subStart > endOfMonth) return total
+    
+    // Check if subscription has ended before this month
+    let subEnd = null
+    if (sub.next_billing_date) {
+      const [year, month, day] = sub.next_billing_date.split('-').map(Number)
+      subEnd = new Date(year, month - 1, day)
+      // If subscription ended before this month started, skip it
+      if (subEnd < startOfMonth) return total
+    }
+    
+    // For monthly subscriptions, charge the full monthly amount if active during this month
+    if ((sub.frequency || 'month') === 'month') {
+      // If subscription was active at any point during this month, charge the full monthly amount
+      return total + convertCurrency(sub.amount, sub.currency || 'USD', currency)
+    } else {
+      // For other frequencies, use the period calculation
+      return total + calculateSubscriptionCost(sub, startOfMonth, endOfMonth, currency)
+    }
   }, 0)
+}
+
+/**
+ * Calculate subscription costs for all months from start_date to current month
+ * This ensures subscriptions are properly allocated to past months when added retroactively
+ * @param {Object} subscription - Subscription object
+ * @param {string} currency - Target currency
+ * @returns {Array} Array of { month: Date, cost: number } objects
+ */
+export function calculateSubscriptionCostsByMonth(subscription, currency) {
+  if (!subscription.active) return []
+  
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  
+  // Parse start_date
+  let subStart
+  if (subscription.start_date) {
+    const [year, month, day] = subscription.start_date.split('-').map(Number)
+    subStart = new Date(year, month - 1, day)
+  } else {
+    subStart = new Date(subscription.created_at)
+  }
+  
+  // Parse end_date if exists
+  let subEnd = null
+  if (subscription.next_billing_date) {
+    const [year, month, day] = subscription.next_billing_date.split('-').map(Number)
+    subEnd = new Date(year, month - 1, day)
+  }
+  
+  // If subscription hasn't started yet, return empty
+  if (subStart > today) return []
+  
+  // Calculate costs for each month from start to today (or end date)
+  const costsByMonth = []
+  const current = new Date(subStart.getFullYear(), subStart.getMonth(), 1)
+  const endDate = subEnd && subEnd < today ? subEnd : today
+  
+  while (current <= endDate) {
+    const monthStart = new Date(current.getFullYear(), current.getMonth(), 1)
+    const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0)
+    monthEnd.setHours(23, 59, 59, 999)
+    
+    // Only include months where subscription was active
+    const periodStart = subStart > monthStart ? subStart : monthStart
+    const periodEnd = subEnd && subEnd < monthEnd ? subEnd : monthEnd
+    
+    if (periodStart <= periodEnd) {
+      const cost = calculateSubscriptionCost(subscription, periodStart, periodEnd, currency)
+      if (cost > 0) {
+        costsByMonth.push({
+          month: new Date(current.getFullYear(), current.getMonth(), 1),
+          cost: cost
+        })
+      }
+    }
+    
+    // Move to next month
+    current.setMonth(current.getMonth() + 1)
+  }
+  
+  return costsByMonth
 }
 
 /**
