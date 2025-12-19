@@ -42,11 +42,13 @@
 
 @media (max-width: 768px) {
   .insights-card {
-    padding: 20px;
+    padding: 16px;
+    border-radius: 12px;
   }
 
   .insights-title {
     font-size: 18px;
+    margin-bottom: 12px;
   }
 
   .insight-item {
@@ -55,6 +57,24 @@
 
   .insight-message {
     font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .insights-card {
+    padding: 12px;
+  }
+
+  .insights-title {
+    font-size: 16px;
+  }
+
+  .insight-item {
+    padding: 10px;
+  }
+
+  .insight-message {
+    font-size: 13px;
   }
 }
 

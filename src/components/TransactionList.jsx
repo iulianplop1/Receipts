@@ -257,7 +257,7 @@ export default function TransactionList({ transactions, currency, onUpdate, subs
               const isEditing = editingId === transaction.id
 
               return (
-                <div key={transaction.id} className="transaction-item">
+                <div key={transaction.id} id={`transaction-${transaction.id}`} className="transaction-item">
                   {isEditing ? (
                     <div className="edit-form">
                       <div className="edit-form-row">

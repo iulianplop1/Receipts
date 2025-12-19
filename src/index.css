@@ -27,6 +27,11 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent text size adjustment on iOS */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Improve touch scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
 }
 
 #root {

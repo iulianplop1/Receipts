@@ -150,6 +150,18 @@ export default function Dashboard({ user }) {
             subscriptions={subscriptions}
             budgets={budgets}
             currency={selectedCurrency}
+            onTransactionSelect={(transaction) => {
+              // Scroll to transaction in TransactionList
+              // The TransactionList component will handle highlighting
+              const element = document.getElementById(`transaction-${transaction.id}`)
+              if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                element.style.backgroundColor = 'var(--primary-light)'
+                setTimeout(() => {
+                  element.style.backgroundColor = ''
+                }, 2000)
+              }
+            }}
           />
           
           {insights.length > 0 && (
