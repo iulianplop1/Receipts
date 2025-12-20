@@ -28,6 +28,7 @@ async function listAvailableModels() {
 async function getAvailableModel() {
   // Try models in order of preference
   const modelNames = [
+    'gemini-2.5-flash',
     'gemini-1.5-flash',
     'gemini-1.5-pro',
     'gemini-pro'
@@ -264,16 +265,36 @@ Be extremely careful with:
   // Try models in order - use correct model names
   // Start with available models if we got them, otherwise use defaults
   const defaultModelNames = [
+    'gemini-2.5-flash',
     'gemini-1.5-flash',
     'gemini-1.5-pro',
     'gemini-pro',
     'gemini-pro-vision'
   ]
   
-  // If we have available models, prioritize those that support vision
-  const modelNames = availableModels.length > 0 
-    ? availableModels.filter(m => m.includes('flash') || m.includes('pro') || m.includes('vision'))
-    : defaultModelNames
+  // If we have available models, prioritize gemini-2.5-flash, then other vision models
+  let modelNames
+  if (availableModels.length > 0) {
+    // Filter for relevant models (flash, pro, vision)
+    const relevantModels = availableModels.filter(m => {
+      const cleanName = m.replace('models/', '').toLowerCase()
+      return cleanName.includes('flash') || cleanName.includes('pro') || cleanName.includes('vision')
+    })
+    
+    // Prioritize gemini-2.5-flash if available
+    const gemini25Flash = relevantModels.find(m => {
+      const cleanName = m.replace('models/', '').toLowerCase()
+      return cleanName.includes('2.5-flash') || cleanName.includes('2.5_flash')
+    })
+    
+    if (gemini25Flash) {
+      modelNames = [gemini25Flash, ...relevantModels.filter(m => m !== gemini25Flash)]
+    } else {
+      modelNames = relevantModels
+    }
+  } else {
+    modelNames = defaultModelNames
+  }
   
   // If no filtered models, use all available or defaults
   const modelsToTry = modelNames.length > 0 ? modelNames : (availableModels.length > 0 ? availableModels : defaultModelNames)
