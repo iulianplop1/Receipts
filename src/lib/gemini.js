@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { convertCurrency } from './currency'
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyDRkO31dq3n5R5KUFVbLgEXQF9yXrx455c'
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyDAPwdjFvLknDrbmEj1kHIZRd_H4nITvMc'
 
 if (!API_KEY) {
   throw new Error('Missing Gemini API key. Please set VITE_GEMINI_API_KEY in your .env file')
