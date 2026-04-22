@@ -9,6 +9,22 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const handleDemoLogin = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: 'iulianplop.demo@gmail.com',
+        password: 'demo123',
+      })
+      if (error) throw error
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -80,6 +96,20 @@ export default function Login() {
           onClick={() => setIsSignUp(!isSignUp)}
         >
           {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+        </button>
+
+        <div style={{ textAlign: 'center', margin: '15px 0', color: '#6b7280', fontSize: '0.9rem' }}>
+          <span>or</span>
+        </div>
+
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={handleDemoLogin}
+          disabled={loading}
+          style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+        >
+          {loading ? 'Loading...' : 'Try Demo Account'}
         </button>
       </div>
     </div>
