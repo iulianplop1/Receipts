@@ -1,0 +1,363 @@
+.subscription-tracker-card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+.subscriptions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.subscription-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--background);
+  border-radius: 12px;
+}
+
+.subscription-info {
+  flex: 1;
+}
+
+.subscription-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.subscription-details {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.subscription-toggle {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.subscription-toggle.active {
+  background: var(--success);
+  color: white;
+}
+
+.subscription-toggle.inactive {
+  background: var(--border);
+  color: var(--text-secondary);
+}
+
+.subscription-toggle:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.subscription-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.potential-subscriptions {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--background);
+  border-radius: 12px;
+}
+
+.potential-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.potential-item {
+  padding: 12px;
+  background: var(--surface);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.btn-add-subscription {
+  padding: 8px 16px;
+  background: #3B82F6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-add-subscription:hover {
+  background: #2563EB;
+}
+
+.subscription-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.subscription-delete {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 24px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.subscription-delete:hover {
+  background: #FEE2E2;
+  color: var(--error);
+}
+
+.subscription-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.subscription-modal {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--background);
+}
+
+.subscription-form {
+  margin-top: 24px;
+}
+
+.form-field {
+  margin-bottom: 16px;
+}
+
+.form-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.btn-primary {
+  padding: 10px 20px;
+  background: #3B82F6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #2563EB;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: var(--background);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-secondary:hover {
+  background: var(--border);
+}
+
+.subscription-billing-date {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.billing-days {
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.billing-days.soon {
+  color: #F59E0B;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .subscription-tracker-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .btn-add-subscription {
+    width: 100%;
+    padding: 10px 16px;
+  }
+
+  .subscription-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .subscription-item:active {
+    transform: scale(0.98);
+  }
+
+  .subscription-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .subscription-toggle {
+    flex: 1;
+    padding: 10px 16px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-field input,
+  .form-field select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  .subscription-modal {
+    padding: 20px;
+    max-width: 95%;
+    margin: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .subscription-tracker-card {
+    padding: 12px;
+  }
+
+  .subscription-item {
+    padding: 12px;
+  }
+
+  .subscription-name {
+    font-size: 15px;
+  }
+
+  .subscription-details {
+    font-size: 13px;
+  }
+}
+
