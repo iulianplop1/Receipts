@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import './Login.css'
 
-export default function Login() {
+export default function Login({ onDemoLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
@@ -10,18 +10,8 @@ export default function Login() {
   const [error, setError] = useState('')
 
   const handleDemoLogin = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: 'iulianplop.demo@gmail.com',
-        password: 'demo123',
-      })
-      if (error) throw error
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+    if (onDemoLogin) {
+      onDemoLogin();
     }
   }
 

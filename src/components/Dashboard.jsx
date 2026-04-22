@@ -12,7 +12,7 @@ import SubscriptionTracker from './SubscriptionTracker'
 import IncomeTracker from './IncomeTracker'
 import './Dashboard.css'
 
-export default function Dashboard({ user }) {
+export default function Dashboard({ user, onExitDemo }) {
   const [transactions, setTransactions] = useState([])
   const [budgets, setBudgets] = useState([])
   const [subscriptions, setSubscriptions] = useState([])
@@ -76,6 +76,10 @@ export default function Dashboard({ user }) {
   }
 
   const handleSignOut = async () => {
+    if (user.isDemo && typeof onExitDemo === 'function') {
+      onExitDemo();
+      return;
+    }
     await supabase.auth.signOut()
   }
 

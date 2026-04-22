@@ -6,6 +6,7 @@ import './App.css'
 
 function App() {
   const [user, setUser] = useState(null)
+  const [demoUser, setDemoUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -33,7 +34,9 @@ function App() {
     )
   }
 
-  return user ? <Dashboard user={user} /> : <Login />
+  const activeUser = demoUser || user;
+
+  return activeUser ? <Dashboard user={activeUser} onExitDemo={() => setDemoUser(null)} /> : <Login onDemoLogin={() => setDemoUser({ id: 'demo', email: 'demo@demo.com', isDemo: true })} />
 }
 
 export default App
