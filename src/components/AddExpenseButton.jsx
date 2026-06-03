@@ -440,6 +440,27 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
     ])
   }
 
+  const handleManualEntry = () => {
+    const today = getTodayDateString()
+    setError('')
+    setTotalValidation(null)
+    setReceiptFiles([])
+    setBulkDate(today)
+    setReviewItems([
+      {
+        item: '',
+        amount: '',
+        category: 'Other',
+        currency: 'DKK',
+        date: today,
+        receiptFileId: null,
+        receiptFileIndex: null,
+        receiptFileName: null,
+      },
+    ])
+    setMode('review')
+  }
+
   const handleRemoveItem = (indexToRemove) => {
     setReviewItems(prevItems => prevItems.filter((_, index) => index !== indexToRemove))
   }
@@ -590,7 +611,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
 
         await addTransaction({
           user_id: userId,
-          item: item.item,
+          item: item.item?.trim() || 'Manual purchase',
           amount: parsedAmount,
           category: item.category || 'Other',
           currency: item.currency || 'DKK',
@@ -691,6 +712,14 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
                 <span className="mode-icon">✍️</span>
                 <span className="mode-label">Type Text</span>
               </button>
+
+              <button
+                className="mode-button"
+                onClick={handleManualEntry}
+              >
+                <span className="mode-icon">+</span>
+                <span className="mode-label">Add Manually</span>
+              </button>
             </div>
 
             <input
@@ -777,7 +806,7 @@ export default function AddExpenseButton({ show, onClose, onAdd, userId }) {
 
             <div className="bulk-date-controls">
               <div className="bulk-date-meta">
-                <label htmlFor="bulk-date-input">Receipt date for all items</label>
+                <label htmlFor="bulk-date-input">Purchase date for all items</label>
                 <small>Update once and sync every line item</small>
               </div>
               <div className="bulk-date-actions">
